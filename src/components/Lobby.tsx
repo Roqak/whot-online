@@ -1,225 +1,325 @@
-import { useState } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
-import { Copy, Share2, QrCode, UserPlus, UserMinus, Crown, Check, LogOut, Play, Settings } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { AnimatePresence, motion } from 'framer-motion'
+import QRCode from 'qrcode'
+import { Check, Copy, Crown, LogOut, Play, QrCode, Share2, UserMinus, UserPlus, WifiOff } from 'lucide-react'
 import { useGameStore } from '../store/gameStore'
+import { MAX_PLAYERS, MIN_PLAYERS } from '../engine/gameEngine'
+import { BotLevel, SETTING_LIMITS } from '../types/game'
+import { Avatar } from './Avatar'
 
-function Lobby() {
-  const {
-    roomCode, playerName, isHost, players,
-    addBot, removeBot, kickPlayer, toggleReady,
-    startGame, setScreen
-  } = useGameStore()
+const BOT_LEVELS: { value: BotLevel; label: string }[] = [
+  { value: 'easy', label: 'Easy' },
+  { value: 'normal', label: 'Normal' },
+  { value: 'hard', label: 'Hard' },
+]
+
+export default function Lobby() {
+  const lobby = useGameStore((s) => s.lobby)
+  const session = useGameStore((s) => s.session)
+  const leaveRoom = useGameStore((s) => s.leaveRoom)
+  const setReady = useGameStore((s) => s.setReady)
+  const addBot = useGameStore((s) => s.addBot)
+  const removePlayer = useGameStore((s) => s.removePlayer)
+  const updateSettings = useGameStore((s) => s.updateSettings)
+  const startGame = useGameStore((s) => s.startGame)
 
   const [copied, setCopied] = useState(false)
-  const [showSettings, setShowSettings] = useState(false)
   const [showQr, setShowQr] = useState(false)
+  const [qr, setQr] = useState<string | null>(null)
+  const [showBotMenu, setShowBotMenu] = useState(false)
 
-  const roomUrl = `https://whot.gg/r/${roomCode}`
+  const roomUrl = lobby ? `${window.location.origin}/r/${lobby.code}` : ''
 
-  const copyLink = () => {
-    navigator.clipboard.writeText(roomUrl)
-    setCopied(true)
-    setTimeout(() => setCopied(false), 2000)
+  useEffect(() => {
+    if (!showQr || !roomUrl) return
+    let active = true
+    QRCode.toDataURL(roomUrl, { margin: 1, width: 360, color: { dark: '#2c1114', light: '#f6efe2' } })
+      .then((url) => active && setQr(url))
+      .catch(() => active && setQr(null))
+    return () => {
+      active = false
+    }
+  }, [showQr, roomUrl])
+
+  if (!lobby || !session) return null
+
+  const me = lobby.members.find((m) => m.id === session.playerId)
+  const isHost = lobby.hostId === session.playerId
+  const humansWaiting = lobby.members.filter((m) => !m.isBot && m.id !== lobby.hostId && !m.ready)
+  const canStart = lobby.members.length >= MIN_PLAYERS && humansWaiting.length === 0
+
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(roomUrl)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 1800)
+    } catch {
+      setCopied(false)
+    }
   }
 
-  const shareToWhatsApp = () => {
-    const text = `Join me for Whot! ${roomUrl}`
-    window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank')
+  const share = async () => {
+    const text = `Join my Whot game: ${roomUrl}`
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: 'Whot! Online', text, url: roomUrl })
+        return
+      } catch {
+        // Sharing cancelled: fall back to copying.
+      }
+    }
+    void copy()
   }
-
-  const canStart = players.filter(p => p.isReady || p.isBot).length >= 2 && players.filter(p => !p.isBot && p.isReady).length >= 1
 
   return (
-    <div className="h-full w-full flex flex-col">
-      {/* Header */}
-      <div className="flex items-center justify-between p-4 border-b border-white/10">
-        <button onClick={() => setScreen('landing')} className="text-white/60 hover:text-white">
-          <LogOut size={20} />
+    <div className="mx-auto flex h-full w-full max-w-lg flex-col">
+      <header className="flex items-center justify-between px-4 py-3 pad-safe-top">
+        <button className="btn-icon" onClick={leaveRoom} aria-label="Leave room">
+          <LogOut size={18} />
         </button>
-        <div className="flex items-center gap-2">
-          <Crown size={16} className="text-yellow-400" />
-          <span className="text-sm text-white/60">
-            {players.find(p => p.isHost)?.name}'s Room
-          </span>
-        </div>
-        <button onClick={() => setShowSettings(!showSettings)} className="text-white/60 hover:text-white">
-          <Settings size={20} />
-        </button>
-      </div>
-
-      {/* Room code */}
-      <div className="px-4 pt-4">
-        <motion.div
-          initial={{ opacity: 0, y: -10 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="bg-white/5 border border-white/10 rounded-xl p-4"
-        >
-          <p className="text-white/40 text-xs uppercase tracking-wider mb-2">Room Code</p>
-          <div className="flex items-center gap-3">
-            <span className="text-2xl font-mono font-bold text-yellow-400 tracking-widest">
-              {roomCode}
-            </span>
-            <motion.button
-              whileTap={{ scale: 0.9 }}
-              onClick={copyLink}
-              className="p-2 bg-white/10 rounded-lg hover:bg-white/20 transition-colors"
-            >
-              {copied ? <Check size={18} className="text-green-400" /> : <Copy size={18} />}
-            </motion.button>
-          </div>
-
-          <div className="flex gap-2 mt-3">
-            <motion.button
-              whileTap={{ scale: 0.95 }}
-              onClick={shareToWhatsApp}
-              className="flex-1 py-2 bg-green-600 hover:bg-green-500 rounded-lg text-sm font-medium flex items-center justify-center gap-1.5 transition-colors"
-            >
-              <Share2 size={16} />
-              WhatsApp
-            </motion.button>
-            <motion.button
-              whileTap={{ scale: 0.95 }}
-              onClick={() => setShowQr(!showQr)}
-              className="flex-1 py-2 bg-white/10 hover:bg-white/20 rounded-lg text-sm font-medium flex items-center justify-center gap-1.5 transition-colors"
-            >
-              <QrCode size={16} />
-              QR Code
-            </motion.button>
-          </div>
-        </motion.div>
-      </div>
-
-      {/* QR Code placeholder */}
-      <AnimatePresence>
-        {showQr && (
-          <motion.div
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: 'auto' }}
-            exit={{ opacity: 0, height: 0 }}
-            className="px-4 overflow-hidden"
-          >
-            <div className="bg-white rounded-xl p-4 mt-3 flex items-center justify-center">
-              <div className="w-48 h-48 bg-gray-200 rounded-lg flex items-center justify-center text-gray-400 text-sm">
-                [QR Code for {roomUrl}]
-              </div>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Players */}
-      <div className="flex-1 overflow-y-auto px-4 py-4">
-        <p className="text-white/40 text-xs uppercase tracking-wider mb-3">
-          Players ({players.length}/6)
+        <p className="text-sm text-fg-muted">
+          {lobby.members.find((m) => m.id === lobby.hostId)?.name}
+          <span className="text-fg-faint">’s table</span>
         </p>
+        <span className="w-10" />
+      </header>
 
-        <div className="space-y-2">
+      <section className="px-4">
+        <div className="panel rounded-2xl p-4">
+          <p className="text-[11px] uppercase tracking-[0.2em] text-fg-faint">Room code</p>
+          <div className="mt-1 flex items-center gap-3">
+            <span className="font-display text-3xl font-extrabold tracking-[0.2em] text-marigold">{lobby.code}</span>
+            <button className="btn-icon" onClick={copy} aria-label="Copy invite link">
+              {copied ? <Check size={18} className="text-leaf" /> : <Copy size={18} />}
+            </button>
+          </div>
+          <div className="mt-3 flex gap-2">
+            <button className="btn-primary flex-1 text-sm" onClick={share}>
+              <Share2 size={16} /> Share invite
+            </button>
+            <button className="btn-ghost text-sm" onClick={() => setShowQr((v) => !v)} aria-expanded={showQr}>
+              <QrCode size={16} /> QR
+            </button>
+          </div>
           <AnimatePresence>
-            {players.map((player) => (
+            {showQr && (
               <motion.div
-                key={player.id}
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: 20 }}
-                layout
-                className={`flex items-center gap-3 p-3 rounded-xl border transition-colors ${
-                  player.isReady ? 'bg-green-500/10 border-green-500/30' : 'bg-white/5 border-white/10'
-                }`}
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                exit={{ opacity: 0, height: 0 }}
+                className="overflow-hidden"
               >
-                <img
-                  src={`https://api.dicebear.com/7.x/notionists/svg?seed=${player.avatarSeed}`}
-                  alt={player.name}
-                  className="w-10 h-10 rounded-full bg-white/10"
-                />
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-1.5">
-                    <span className="font-medium text-sm truncate">{player.name}</span>
-                    {player.isHost && (
-                      <Crown size={12} className="text-yellow-400 shrink-0" />
-                    )}
-                    {player.isBot && (
-                      <span className="text-[10px] bg-blue-500/30 text-blue-200 px-1.5 py-0.5 rounded">BOT</span>
-                    )}
-                  </div>
-                  <span className="text-xs text-white/40">
-                    {player.isReady ? 'Ready' : 'Not ready'}
-                  </span>
+                <div className="mt-3 grid place-items-center rounded-xl bg-paper p-3">
+                  {qr ? (
+                    <img src={qr} alt={`QR code for ${roomUrl}`} className="h-44 w-44" />
+                  ) : (
+                    <span className="grid h-44 w-44 place-items-center text-sm text-ink/60">Building QR…</span>
+                  )}
                 </div>
-
-                {player.name === playerName && !player.isBot ? (
-                  <motion.button
-                    whileTap={{ scale: 0.9 }}
-                    onClick={toggleReady}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                      player.isReady
-                        ? 'bg-green-500/20 text-green-300 hover:bg-green-500/30'
-                        : 'bg-white/10 text-white/70 hover:bg-white/20'
-                    }`}
-                  >
-                    {player.isReady ? 'Ready ✓' : 'Ready?'}
-                  </motion.button>
-                ) : isHost && player.isBot ? (
-                  <motion.button
-                    whileTap={{ scale: 0.9 }}
-                    onClick={() => removeBot(player.id)}
-                    className="p-1.5 text-white/40 hover:text-red-400 transition-colors"
-                  >
-                    <UserMinus size={16} />
-                  </motion.button>
-                ) : isHost && !player.isBot && player.name !== playerName ? (
-                  <motion.button
-                    whileTap={{ scale: 0.9 }}
-                    onClick={() => kickPlayer(player.id)}
-                    className="p-1.5 text-white/40 hover:text-red-400 transition-colors"
-                  >
-                    <UserMinus size={16} />
-                  </motion.button>
-                ) : null}
               </motion.div>
-            ))}
+            )}
           </AnimatePresence>
         </div>
+      </section>
 
-        {/* Add bot button */}
-        {isHost && players.length < 6 && (
-          <motion.button
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            whileTap={{ scale: 0.95 }}
-            onClick={() => addBot('easy')}
-            className="w-full mt-2 py-2.5 border border-dashed border-white/20 rounded-xl text-sm text-white/50 hover:text-white/80 hover:border-white/40 transition-colors flex items-center justify-center gap-2"
-          >
-            <UserPlus size={16} />
-            Add Bot
-          </motion.button>
-        )}
-      </div>
+      <section className="mt-4 min-h-0 flex-1 overflow-y-auto px-4">
+        <div className="flex items-center justify-between">
+          <p className="text-[11px] uppercase tracking-[0.2em] text-fg-faint">
+            Players {lobby.members.length}/{MAX_PLAYERS}
+          </p>
+          {isHost && lobby.members.length < MAX_PLAYERS && (
+            <div className="relative">
+              <button className="chip bg-table-800/70 text-xs text-fg-muted" onClick={() => setShowBotMenu((v) => !v)}>
+                <UserPlus size={14} /> Add bot
+              </button>
+              <AnimatePresence>
+                {showBotMenu && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -4 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -4 }}
+                    className="panel absolute right-0 z-20 mt-1 flex gap-1 rounded-xl p-1"
+                  >
+                    {BOT_LEVELS.map((level) => (
+                      <button
+                        key={level.value}
+                        className="rounded-lg px-3 py-1.5 text-xs hover:bg-table-700"
+                        onClick={() => {
+                          addBot(level.value)
+                          setShowBotMenu(false)
+                        }}
+                      >
+                        {level.label}
+                      </button>
+                    ))}
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+          )}
+        </div>
 
-      {/* Start button */}
-      <div className="p-4 border-t border-white/10">
-        {isHost ? (
-          <motion.button
-            whileHover={{ scale: canStart ? 1.02 : 1 }}
-            whileTap={{ scale: canStart ? 0.98 : 1 }}
-            onClick={canStart ? startGame : undefined}
-            disabled={!canStart}
-            className={`w-full py-4 rounded-xl font-bold text-lg flex items-center justify-center gap-2 transition-colors ${
-              canStart
-                ? 'bg-yellow-400 hover:bg-yellow-300 text-felt-dark'
-                : 'bg-white/10 text-white/40 cursor-not-allowed'
-            }`}
-          >
-            <Play size={22} />
-            {canStart ? 'Start Game' : `Need ${2 - players.filter(p => p.isReady || p.isBot).length} more ready player${players.filter(p => p.isReady || p.isBot).length === 1 ? '' : 's'}`}
-          </motion.button>
-        ) : (
-          <div className="text-center text-white/40 text-sm">
-            Waiting for host to start...
+        <ul className="mt-2 space-y-2">
+          <AnimatePresence initial={false}>
+            {lobby.members.map((member) => (
+              <motion.li
+                key={member.id}
+                layout
+                initial={{ opacity: 0, y: -8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, x: 16 }}
+                className={`flex items-center gap-3 rounded-xl px-3 py-2.5 shadow-seat ${
+                  member.ready ? 'bg-leaf/10 ring-1 ring-leaf/30' : 'bg-table-800/50 ring-1 ring-table-600/30'
+                }`}
+              >
+                <Avatar id={member.avatar} size={38} dimmed={!member.connected} />
+                <div className="min-w-0 flex-1">
+                  <p className="flex items-center gap-1.5 truncate text-sm font-medium">
+                    {member.name}
+                    {member.id === lobby.hostId && <Crown size={13} className="shrink-0 text-marigold" />}
+                    {member.isBot && (
+                      <span className="chip bg-table-700 px-1.5 py-0 text-[10px] text-fg-muted">{member.botLevel}</span>
+                    )}
+                  </p>
+                  <p className="flex items-center gap-1 text-[11px] text-fg-faint">
+                    {!member.connected && <WifiOff size={11} />}
+                    {member.id === lobby.hostId ? 'Host' : member.ready ? 'Ready' : 'Not ready'}
+                  </p>
+                </div>
+                {member.id === session.playerId && !isHost ? (
+                  <button
+                    className={`rounded-lg px-3 py-1.5 text-xs font-semibold ${
+                      member.ready ? 'bg-leaf/20 text-leaf' : 'bg-table-700 text-fg-muted'
+                    }`}
+                    onClick={() => setReady(!me?.ready)}
+                  >
+                    {member.ready ? 'Ready' : 'I’m ready'}
+                  </button>
+                ) : isHost && member.id !== session.playerId ? (
+                  <button
+                    className="btn-icon hover:text-ember"
+                    onClick={() => removePlayer(member.id)}
+                    aria-label={`Remove ${member.name}`}
+                  >
+                    <UserMinus size={16} />
+                  </button>
+                ) : null}
+              </motion.li>
+            ))}
+          </AnimatePresence>
+        </ul>
+
+        <div className="panel mt-4 rounded-2xl p-4">
+          <p className="text-[11px] uppercase tracking-[0.2em] text-fg-faint">Table rules</p>
+          <div className="mt-3 space-y-3">
+            <Segmented
+              label="Play to"
+              value={lobby.settings.targetScore}
+              options={SETTING_LIMITS.targetScores.map((score) => ({
+                value: score,
+                label: score === 0 ? 'One round' : String(score),
+              }))}
+              disabled={!isHost}
+              onChange={(targetScore) => updateSettings({ targetScore })}
+            />
+            <Segmented
+              label="Turn timer"
+              value={lobby.settings.turnSeconds}
+              options={SETTING_LIMITS.turnSeconds.map((seconds) => ({
+                value: seconds,
+                label: seconds === 0 ? 'Off' : `${seconds}s`,
+              }))}
+              disabled={!isHost}
+              onChange={(turnSeconds) => updateSettings({ turnSeconds })}
+            />
+            <div className="flex items-center justify-between gap-3">
+              <span className="text-sm text-fg-muted">Cards each</span>
+              <div className="flex items-center gap-1">
+                <button
+                  className="btn-icon"
+                  disabled={!isHost || lobby.settings.handSize <= SETTING_LIMITS.handSize.min}
+                  onClick={() => updateSettings({ handSize: lobby.settings.handSize - 1 })}
+                  aria-label="Fewer cards"
+                >
+                  −
+                </button>
+                <span className="w-6 text-center font-display text-lg font-bold tabular-nums">{lobby.settings.handSize}</span>
+                <button
+                  className="btn-icon"
+                  disabled={!isHost || lobby.settings.handSize >= SETTING_LIMITS.handSize.max}
+                  onClick={() => updateSettings({ handSize: lobby.settings.handSize + 1 })}
+                  aria-label="More cards"
+                >
+                  +
+                </button>
+              </div>
+            </div>
+            <label className="flex items-center justify-between gap-3 text-sm text-fg-muted">
+              <span>Defend picks with 2 and 5</span>
+              <input
+                type="checkbox"
+                className="h-5 w-5 accent-[oklch(var(--marigold))]"
+                checked={lobby.settings.stackPicks}
+                disabled={!isHost}
+                onChange={(e) => updateSettings({ stackPicks: e.target.checked })}
+              />
+            </label>
           </div>
+          {!isHost && <p className="mt-3 text-[11px] text-fg-faint">Only the host can change these</p>}
+        </div>
+      </section>
+
+      <footer className="px-4 py-4 pad-safe-bottom">
+        {isHost ? (
+          <button className="btn-primary w-full py-4 text-base" disabled={!canStart} onClick={startGame}>
+            <Play size={20} />
+            {lobby.members.length < MIN_PLAYERS
+              ? 'Add a bot or invite a friend'
+              : humansWaiting.length > 0
+                ? `Waiting for ${humansWaiting.map((m) => m.name).join(', ')}`
+                : 'Start game'}
+          </button>
+        ) : (
+          <p className="text-center text-sm text-fg-muted">
+            {me?.ready ? 'Waiting for the host to start' : 'Tap ready when you are set'}
+          </p>
         )}
-      </div>
+      </footer>
     </div>
   )
 }
 
-export default Lobby
+function Segmented<T extends number>({
+  label,
+  value,
+  options,
+  disabled,
+  onChange,
+}: {
+  label: string
+  value: T
+  options: { value: T; label: string }[]
+  disabled?: boolean
+  onChange: (value: T) => void
+}) {
+  return (
+    <div className="flex items-center justify-between gap-3">
+      <span className="shrink-0 text-sm text-fg-muted">{label}</span>
+      <div className="flex flex-wrap justify-end gap-1" role="group" aria-label={label}>
+        {options.map((option) => (
+          <button
+            key={option.value}
+            disabled={disabled}
+            aria-pressed={option.value === value}
+            onClick={() => onChange(option.value)}
+            className={`rounded-lg px-2.5 py-1.5 text-xs font-medium transition-colors ${
+              option.value === value ? 'bg-marigold text-table-950' : 'bg-table-800/70 text-fg-muted hover:bg-table-700'
+            } ${disabled ? 'opacity-60' : ''}`}
+          >
+            {option.label}
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+}
