@@ -51,6 +51,10 @@ export default {
           '0%': { transform: 'scale(1)', opacity: '0.55' },
           '100%': { transform: 'scale(1.35)', opacity: '0' },
         },
+        'dot-bounce': {
+          '0%, 80%, 100%': { transform: 'translateY(0)', opacity: '0.4' },
+          '40%': { transform: 'translateY(-3px)', opacity: '1' },
+        },
         rise: {
           '0%': { transform: 'translateY(0) scale(0.8)', opacity: '0' },
           '25%': { opacity: '1' },
@@ -59,6 +63,7 @@ export default {
       },
       animation: {
         'pulse-ring': 'pulse-ring 1.8s cubic-bezier(0.16, 1, 0.3, 1) infinite',
+        'dot-bounce': 'dot-bounce 1.1s ease-in-out infinite',
         rise: 'rise 2.4s cubic-bezier(0.25, 1, 0.5, 1) forwards',
       },
     },

@@ -40,8 +40,23 @@ export function OpponentSeat({ player, onTurn, fraction, urgent, catchable, onCa
         )}
       </div>
 
-      <span className={`mt-1 max-w-full truncate text-[11px] font-medium ${out ? 'text-fg-faint line-through' : 'text-fg-muted'}`}>
-        {player.name}
+      <span
+        className={`mt-1 flex max-w-full items-center gap-1 truncate text-[11px] font-medium ${
+          out ? 'text-fg-faint line-through' : onTurn ? 'text-marigold' : 'text-fg-muted'
+        }`}
+      >
+        <span className="truncate">{player.name}</span>
+        {onTurn && !out && (
+          <span className="flex shrink-0 gap-0.5" aria-hidden="true">
+            {[0, 1, 2].map((i) => (
+              <span
+                key={i}
+                className="h-1 w-1 animate-dot-bounce rounded-full bg-marigold"
+                style={{ animationDelay: `${i * 140}ms` }}
+              />
+            ))}
+          </span>
+        )}
       </span>
 
       {out ? (
