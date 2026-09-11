@@ -213,7 +213,7 @@ export default function Lobby() {
           <p className="text-[11px] uppercase tracking-[0.2em] text-fg-faint">Table rules</p>
           <div className="mt-3 space-y-3">
             <Segmented
-              label="Play to"
+              label="Knocked out at"
               value={lobby.settings.targetScore}
               options={SETTING_LIMITS.targetScores.map((score) => ({
                 value: score,
@@ -265,7 +265,12 @@ export default function Lobby() {
               />
             </label>
           </div>
-          {!isHost && <p className="mt-3 text-[11px] text-fg-faint">Only the host can change these</p>}
+          <p className="mt-3 text-[11px] leading-relaxed text-fg-faint">
+            {lobby.settings.targetScore > 0
+              ? `Cards left in your hand score against you. Reach ${lobby.settings.targetScore} and you are out; last player standing wins.`
+              : 'One hand only. Whoever empties their hand first wins.'}
+            {!isHost && ' Only the host can change these.'}
+          </p>
         </div>
       </section>
 

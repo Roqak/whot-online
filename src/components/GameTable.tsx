@@ -277,7 +277,9 @@ function Table({ view }: { view: GameView }) {
         <div className="flex items-center gap-2">
           <span className="chip bg-table-800/70 text-[11px] text-fg-muted">
             Round {view.round}
-            {view.settings.targetScore > 0 && <span className="text-fg-faint">· to {view.settings.targetScore}</span>}
+            {view.settings.targetScore > 0 && (
+              <span className="text-fg-faint">· out at {view.settings.targetScore}</span>
+            )}
           </span>
           <button className="btn-icon" onClick={toggleSound} aria-label={soundOn ? 'Mute sound' : 'Unmute sound'}>
             {soundOn ? <Volume2 size={17} /> : <VolumeX size={17} />}
