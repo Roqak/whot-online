@@ -85,7 +85,8 @@ export class RoomManager {
     this.rng = options.rng ?? cryptoRng
     this.now = options.now ?? Date.now
     this.opts = {
-      botDelayMs: options.botDelayMs ?? [900, 1700],
+      // Slow enough that a person can follow who just did what.
+      botDelayMs: options.botDelayMs ?? [1300, 2200],
       roundBreakMs: options.roundBreakMs ?? 15_000,
       offlineTurnMs: options.offlineTurnMs ?? 15_000,
       lobbyGraceMs: options.lobbyGraceMs ?? 60_000,

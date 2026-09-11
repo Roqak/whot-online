@@ -245,6 +245,25 @@ function Table({ view }: { view: GameView }) {
 
   return (
     <div className="relative mx-auto flex h-full w-full max-w-3xl flex-col overflow-hidden">
+      {/* A frame around the whole table is the cue you catch without looking for it. */}
+      <AnimatePresence>
+        {isMyTurn && (
+          <motion.div
+            key="turn-frame"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.25 }}
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-0 z-[5]"
+            style={{
+              boxShadow:
+                'inset 0 0 0 2px oklch(var(--marigold) / 0.5), inset 0 0 52px oklch(var(--marigold) / 0.14)',
+            }}
+          />
+        )}
+      </AnimatePresence>
+
       <header className="z-20 flex shrink-0 items-center justify-between gap-2 px-3 py-2 pad-safe-top">
         <div className="flex items-center gap-1">
           {confirmLeave ? (
@@ -275,9 +294,13 @@ function Table({ view }: { view: GameView }) {
         </div>
 
         <div className="flex items-center gap-2">
-          <span className="chip bg-table-800/70 text-[11px] text-fg-muted">
+          <span className="chip whitespace-nowrap bg-table-800/70 px-2 text-[11px] text-fg-muted">
             Round {view.round}
-            {view.settings.targetScore > 0 && <span className="text-fg-faint">· to {view.settings.targetScore}</span>}
+            {view.settings.targetScore > 0 && (
+              <span className="text-fg-faint" title={`Knocked out at ${view.settings.targetScore} points`}>
+                · out {view.settings.targetScore}
+              </span>
+            )}
           </span>
           <button className="btn-icon" onClick={toggleSound} aria-label={soundOn ? 'Mute sound' : 'Unmute sound'}>
             {soundOn ? <Volume2 size={17} /> : <VolumeX size={17} />}
@@ -307,7 +330,7 @@ function Table({ view }: { view: GameView }) {
           ))}
         </div>
 
-        <div className="relative flex min-h-0 flex-1 items-center justify-center px-3">
+        <div className="relative flex min-h-0 flex-1 flex-col items-center justify-center gap-3 px-3">
           <div
             aria-hidden="true"
             className="pointer-events-none absolute inset-x-4 top-1/2 -translate-y-1/2 rounded-[50%] border border-fg/[0.06] bg-fg/[0.015]"
@@ -326,6 +349,23 @@ function Table({ view }: { view: GameView }) {
             }}
             entryOffset={entryOffset}
             cardWidth={pileWidth}
+          />
+
+          <TurnBanner
+            mine={isMyTurn}
+            over={view.phase !== 'playing'}
+            name={nameOf(view.turnPlayerId)}
+            avatar={view.players.find((p) => p.id === view.turnPlayerId)?.avatar ?? 'lion'}
+            fraction={countdown.fraction}
+            seconds={view.deadline ? Math.ceil(countdown.remainingMs / 1000) : null}
+            urgent={countdown.remainingMs > 0 && countdown.remainingMs < 6000}
+            label={
+              view.pendingPick && isMyTurn
+                ? `Defend or pick ${view.pendingPick.amount}`
+                : isMyTurn && nudgeMarket
+                  ? 'No match: go to market'
+                  : null
+            }
           />
         </div>
 
@@ -346,25 +386,21 @@ function Table({ view }: { view: GameView }) {
       </div>
 
       <div className="z-10 shrink-0 px-3">
-        <div className="flex items-center justify-between gap-2">
-          <div className="flex min-w-0 items-center gap-2">
-            <div className="relative" style={{ width: 34, height: 34 }}>
-              <Avatar id={me?.avatar ?? 'lion'} size={34} />
-              <TurnRing size={34} fraction={countdown.fraction} active={isMyTurn} urgent={countdown.remainingMs < 6000} />
-            </div>
-            <p className={`truncate text-xs ${isMyTurn ? 'font-semibold text-marigold' : 'text-fg-faint'}`}>
-              {view.phase !== 'playing'
-                ? 'Round over'
-                : isMyTurn
-                  ? view.pendingPick
-                    ? `Defend or pick ${view.pendingPick.amount}`
-                    : nudgeMarket
-                      ? 'No match: go to market'
-                      : 'Your turn'
-                  : `${nameOf(view.turnPlayerId)} is playing`}
-            </p>
-          </div>
+        {/* Time left, where the cards are. */}
+        <div className="mb-1.5 h-1 w-full overflow-hidden rounded-full bg-table-700/50">
+          {isMyTurn && view.deadline && (
+            <div
+              className="h-full rounded-full"
+              style={{
+                width: `${Math.round(countdown.fraction * 100)}%`,
+                background: countdown.remainingMs < 6000 ? 'oklch(var(--ember))' : 'oklch(var(--marigold))',
+                transition: 'width 250ms linear',
+              }}
+            />
+          )}
+        </div>
 
+        <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-1">
             {canCallLastCard && (
               <motion.button
@@ -379,6 +415,9 @@ function Table({ view }: { view: GameView }) {
                 Last card
               </motion.button>
             )}
+          </div>
+
+          <div className="flex items-center gap-1">
             <button className="btn-icon" onClick={cycleHandSort} aria-label={`Sort hand by ${handSort}`} title={`Sort: ${handSort}`}>
               <ArrowDownUp size={16} />
             </button>
@@ -450,7 +489,10 @@ function Table({ view }: { view: GameView }) {
         </AnimatePresence>
       </div>
 
-      <div className="shrink-0 px-2 pad-safe-bottom" style={{ height: handAreaHeight }}>
+      <div
+        className="shrink-0 px-2 transition-opacity duration-300 pad-safe-bottom"
+        style={{ height: handAreaHeight, opacity: isMyTurn || view.phase !== 'playing' ? 1 : 0.72 }}
+      >
         <PlayerHand
           cards={hand}
           playableIds={playableIds}
@@ -464,6 +506,56 @@ function Table({ view }: { view: GameView }) {
 
       <RulesSheet open={showRules} onClose={() => setShowRules(false)} settings={view.settings} />
     </div>
+  )
+}
+
+interface TurnBannerProps {
+  mine: boolean
+  over: boolean
+  name: string
+  avatar: string
+  fraction: number
+  seconds: number | null
+  urgent: boolean
+  label: string | null
+}
+
+/** Says whose turn it is, in the middle of the table where you are already looking. */
+function TurnBanner({ mine, over, name, avatar, fraction, seconds, urgent, label }: TurnBannerProps) {
+  if (over) return null
+  return (
+    <motion.div
+      key={mine ? 'mine' : name}
+      initial={{ opacity: 0, y: 6 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.2 }}
+      className={`flex items-center gap-2 rounded-full py-1.5 pl-1.5 pr-3.5 ${
+        mine ? 'bg-marigold text-table-950 shadow-card' : 'bg-table-900/85 text-fg-muted ring-1 ring-table-600/50'
+      }`}
+      aria-live="polite"
+    >
+      <span className="relative" style={{ width: 28, height: 28 }}>
+        <Avatar id={avatar} size={28} />
+        <TurnRing size={28} fraction={fraction} active urgent={urgent && !mine} />
+      </span>
+      <span className={`text-sm ${mine ? 'font-bold' : 'font-medium'}`}>
+        {mine ? (label ?? 'Your turn') : `${name} is playing`}
+      </span>
+      {mine && seconds !== null && (
+        <span className={`text-sm font-bold tabular-nums ${urgent ? 'text-ember' : 'text-table-950/60'}`}>{seconds}</span>
+      )}
+      {!mine && (
+        <span className="flex gap-0.5" aria-hidden="true">
+          {[0, 1, 2].map((i) => (
+            <span
+              key={i}
+              className="h-1 w-1 animate-dot-bounce rounded-full bg-fg-faint"
+              style={{ animationDelay: `${i * 140}ms` }}
+            />
+          ))}
+        </span>
+      )}
+    </motion.div>
   )
 }
 
