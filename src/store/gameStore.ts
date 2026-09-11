@@ -1,183 +1,274 @@
 import { create } from 'zustand'
+import { toast } from 'sonner'
+import type { BotLevel, GameEvent, GameSettings, GameView, Suit } from '../types/game'
+import { AVATARS } from '../lib/avatars'
+import { playSound, setSoundEnabled } from '../lib/sound'
+import { ConnectionStatus, GameConnection, socketUrl } from '../net/connection'
+import { ClientMessage, LobbyView, Reaction, ServerMessage, normalizeRoomCode } from '../net/protocol'
 
-export type GameScreen = 'landing' | 'lobby' | 'game'
-
-export interface Player {
-  id: string
+export interface Profile {
   name: string
-  avatarSeed: string
-  cardCount: number
-  isHost: boolean
-  isReady: boolean
-  isBot: boolean
-  score: number
-  isCurrentTurn: boolean
+  avatar: string
 }
 
-export interface GameState {
-  screen: GameScreen
-  roomCode: string | null
-  playerName: string
-  playerAvatar: string
-  isHost: boolean
-  players: Player[]
-  gameStarted: boolean
-  
-  // Actions
-  setScreen: (screen: GameScreen) => void
-  setRoomCode: (code: string | null) => void
-  setPlayerName: (name: string) => void
-  setPlayerAvatar: (avatar: string) => void
-  setIsHost: (isHost: boolean) => void
-  setPlayers: (players: Player[] | ((prev: Player[]) => Player[])) => void
-  setGameStarted: (started: boolean) => void
-  createRoom: (name: string, avatar: string) => void
-  joinRoom: (code: string, name: string, avatar: string) => void
+interface Session {
+  code: string
+  playerId: string
+  sessionId: string
+}
+
+export interface EventBatch {
+  seq: number
+  events: GameEvent[]
+  view: GameView
+}
+
+export interface ReactionBubble {
+  key: number
+  playerId: string
+  emoji: Reaction
+}
+
+export type HandSort = 'shape' | 'number' | 'none'
+
+interface StoreState {
+  status: ConnectionStatus
+  profile: Profile
+  session: Session | null
+  lobby: LobbyView | null
+  game: GameView | null
+  lastBatch: EventBatch | null
+  reactions: ReactionBubble[]
+  /** Card sent to the server but not yet confirmed; shown as already played. */
+  pendingCardId: string | null
+  busy: 'create' | 'join' | 'quick' | null
+  formError: string | null
+  inviteCode: string | null
+  soundOn: boolean
+  handSort: HandSort
+
+  setProfile: (profile: Partial<Profile>) => void
+  createRoom: (opts?: { quickPlay?: boolean }) => void
+  joinRoom: (code: string) => void
   leaveRoom: () => void
-  addBot: (difficulty: 'easy' | 'normal' | 'hard') => void
-  removeBot: (playerId: string) => void
-  kickPlayer: (playerId: string) => void
-  toggleReady: () => void
+  setReady: (ready: boolean) => void
+  addBot: (level: BotLevel) => void
+  removePlayer: (playerId: string) => void
+  updateSettings: (settings: Partial<GameSettings>) => void
   startGame: () => void
-  updatePlayerCardCount: (playerId: string, count: number) => void
+  playCard: (cardId: string, requestedShape?: Suit) => void
+  drawCard: () => void
+  callLastCard: () => void
+  catchPlayer: (targetId: string) => void
+  nextRound: () => void
+  backToLobby: () => void
+  react: (emoji: Reaction) => void
+  toggleSound: () => void
+  cycleHandSort: () => void
+  clearFormError: () => void
 }
 
-const generateRoomCode = (): string => {
-  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
-  let code = ''
-  for (let i = 0; i < 6; i++) {
-    code += chars[Math.floor(Math.random() * chars.length)]
+const storage = {
+  get<T>(store: Storage | undefined, key: string, fallback: T): T {
+    try {
+      const raw = store?.getItem(key)
+      return raw ? (JSON.parse(raw) as T) : fallback
+    } catch {
+      return fallback
+    }
+  },
+  set(store: Storage | undefined, key: string, value: unknown) {
+    try {
+      if (value === null) store?.removeItem(key)
+      else store?.setItem(key, JSON.stringify(value))
+    } catch {
+      // Private mode or storage disabled: settings just won't persist.
+    }
+  },
+}
+
+const local = typeof window !== 'undefined' ? window.localStorage : undefined
+// Per tab, so two tabs can sit at the same table.
+const tab = typeof window !== 'undefined' ? window.sessionStorage : undefined
+
+function inviteFromUrl(): string | null {
+  if (typeof window === 'undefined') return null
+  const match = window.location.pathname.match(/^\/r\/([A-Za-z0-9]{4,8})\/?$/)
+  const code = match?.[1] ?? new URLSearchParams(window.location.search).get('room')
+  return code ? normalizeRoomCode(code) : null
+}
+
+function setUrl(path: string) {
+  if (typeof window !== 'undefined' && window.location.pathname !== path) {
+    window.history.replaceState(null, '', path)
   }
-  return code
 }
 
-export const useGameStore = create<GameState>((set, get) => ({
-  screen: 'landing',
-  roomCode: null,
-  playerName: '',
-  playerAvatar: '',
-  isHost: false,
-  players: [],
-  gameStarted: false,
+let connection: GameConnection | null = null
+let quickPlayPending = false
+let batchSeq = 0
+let reactionSeq = 0
 
-  setScreen: (screen) => set({ screen }),
-  setRoomCode: (code) => set({ roomCode: code }),
-  setPlayerName: (name) => set({ playerName: name }),
-  setPlayerAvatar: (avatar) => set({ playerAvatar: avatar }),
-  setIsHost: (isHost) => set({ isHost }),
-  setPlayers: (players) => set((state) => ({
-    players: typeof players === 'function' ? players(state.players) : players
-  })),
-  setGameStarted: (started) => set({ gameStarted: started }),
-
-  createRoom: (name, avatar) => {
-    const code = generateRoomCode()
-    const playerId = `player_${Date.now()}`
-    const hostPlayer: Player = {
-      id: playerId,
-      name,
-      avatarSeed: avatar,
-      cardCount: 0,
-      isHost: true,
-      isReady: false,
-      isBot: false,
-      score: 0,
-      isCurrentTurn: false,
+export const useGameStore = create<StoreState>((set, get) => {
+  const send = (msg: ClientMessage) => {
+    if (!connection) {
+      connection = new GameConnection(socketUrl(), {
+        onMessage: handleMessage,
+        onStatus: (status) => set({ status }),
+        onOpen: () => {
+          const { session } = get()
+          if (session) connection!.send({ t: 'resume', code: session.code, sessionId: session.sessionId })
+        },
+      })
     }
-    set({
-      screen: 'lobby',
-      roomCode: code,
-      playerName: name,
-      playerAvatar: avatar,
-      isHost: true,
-      players: [hostPlayer],
-      gameStarted: false,
-    })
-  },
+    connection.send(msg)
+  }
 
-  joinRoom: (code, name, avatar) => {
-    const playerId = `player_${Date.now()}`
-    const newPlayer: Player = {
-      id: playerId,
-      name,
-      avatarSeed: avatar,
-      cardCount: 0,
-      isHost: false,
-      isReady: false,
-      isBot: false,
-      score: 0,
-      isCurrentTurn: false,
+  const clearRoom = () => {
+    storage.set(tab, 'whot:session', null)
+    set({ session: null, lobby: null, game: null, lastBatch: null, pendingCardId: null, busy: null })
+    setUrl('/')
+  }
+
+  function handleMessage(msg: ServerMessage) {
+    switch (msg.t) {
+      case 'welcome': {
+        const session = { code: msg.code, playerId: msg.playerId, sessionId: msg.sessionId }
+        storage.set(tab, 'whot:session', session)
+        set({ session, busy: null, formError: null, inviteCode: null })
+        setUrl(`/r/${msg.code}`)
+        if (quickPlayPending) {
+          quickPlayPending = false
+          send({ t: 'addBot', level: 'normal' })
+          send({ t: 'addBot', level: 'normal' })
+          send({ t: 'start' })
+        }
+        break
+      }
+      case 'lobby':
+        set((s) => ({
+          lobby: msg.lobby,
+          game: msg.lobby.inGame ? s.game : null,
+          pendingCardId: msg.lobby.inGame ? s.pendingCardId : null,
+        }))
+        break
+      case 'game':
+        set({
+          game: msg.view,
+          pendingCardId: null,
+          lastBatch: { seq: ++batchSeq, events: msg.events, view: msg.view },
+        })
+        break
+      case 'left':
+        clearRoom()
+        if (msg.reason === 'kicked') toast('The host removed you from the room')
+        if (msg.reason === 'expired') toast('You were away too long and lost your seat')
+        break
+      case 'error':
+        if (msg.code === 'session_expired') {
+          const hadRoom = !!get().lobby
+          clearRoom()
+          if (hadRoom) toast('That game has ended')
+          break
+        }
+        if (get().busy) {
+          quickPlayPending = false
+          set({ busy: null, formError: msg.message })
+          break
+        }
+        set({ pendingCardId: null })
+        playSound('error')
+        toast.error(msg.message, { id: 'server-error' })
+        break
+      case 'reaction': {
+        const bubble = { key: ++reactionSeq, playerId: msg.playerId, emoji: msg.emoji }
+        set((s) => ({ reactions: [...s.reactions.slice(-8), bubble] }))
+        setTimeout(() => set((s) => ({ reactions: s.reactions.filter((r) => r.key !== bubble.key) })), 2600)
+        break
+      }
+      case 'pong':
+        break
     }
-    set({
-      screen: 'lobby',
-      roomCode: code,
-      playerName: name,
-      playerAvatar: avatar,
-      isHost: false,
-      players: [newPlayer],
-      gameStarted: false,
-    })
-  },
+  }
 
-  leaveRoom: () => set({
-    screen: 'landing',
-    roomCode: null,
-    isHost: false,
-    players: [],
-    gameStarted: false,
-  }),
+  const session = storage.get<Session | null>(tab, 'whot:session', null)
+  const soundOn = storage.get(local, 'whot:sound', true)
+  setSoundEnabled(soundOn)
+  if (session) queueMicrotask(() => send({ t: 'ping' }))
 
-  addBot: (_difficulty) => {
-    const { players } = get()
-    if (players.length >= 6) return
-    const botNames = ['Bot Tunde', 'Bot Ada', 'Bot Chidi', 'Bot Ngozi', 'Bot Emeka']
-    const botName = botNames[players.filter(p => p.isBot).length]
-    const botId = `bot_${Date.now()}`
-    const botPlayer: Player = {
-      id: botId,
-      name: botName,
-      avatarSeed: 'Bot',
-      cardCount: 0,
-      isHost: false,
-      isReady: true,
-      isBot: true,
-      score: 0,
-      isCurrentTurn: false,
-    }
-    set((state) => ({
-      players: [...state.players, botPlayer]
-    }))
-  },
+  const randomAvatar = AVATARS[Math.floor(Math.random() * AVATARS.length)].id
 
-  removeBot: (playerId) => {
-    set((state) => ({
-      players: state.players.filter(p => p.id !== playerId)
-    }))
-  },
+  return {
+    status: 'idle',
+    profile: storage.get(local, 'whot:profile', { name: '', avatar: randomAvatar }),
+    session,
+    lobby: null,
+    game: null,
+    lastBatch: null,
+    reactions: [],
+    pendingCardId: null,
+    busy: null,
+    formError: null,
+    inviteCode: inviteFromUrl(),
+    soundOn,
+    handSort: storage.get<HandSort>(local, 'whot:sort', 'shape'),
 
-  kickPlayer: (playerId) => {
-    set((state) => ({
-      players: state.players.filter(p => p.id !== playerId)
-    }))
-  },
+    setProfile: (patch) => {
+      const profile = { ...get().profile, ...patch }
+      storage.set(local, 'whot:profile', profile)
+      set({ profile, formError: null })
+    },
 
-  toggleReady: () => {
-    set((state) => ({
-      players: state.players.map(p =>
-        p.name === state.playerName ? { ...p, isReady: !p.isReady } : p
-      )
-    }))
-  },
+    createRoom: (opts) => {
+      const { profile } = get()
+      quickPlayPending = !!opts?.quickPlay
+      set({ busy: opts?.quickPlay ? 'quick' : 'create', formError: null })
+      send({ t: 'create', name: profile.name, avatar: profile.avatar })
+    },
 
-  startGame: () => {
-    set({ screen: 'game', gameStarted: true })
-  },
+    joinRoom: (code) => {
+      const { profile } = get()
+      set({ busy: 'join', formError: null })
+      send({ t: 'join', code: normalizeRoomCode(code), name: profile.name, avatar: profile.avatar })
+    },
 
-  updatePlayerCardCount: (playerId, count) => {
-    set((state) => ({
-      players: state.players.map(p =>
-        p.id === playerId ? { ...p, cardCount: count } : p
-      )
-    }))
-  },
-}))
+    leaveRoom: () => {
+      if (get().session) send({ t: 'leave' })
+      clearRoom()
+    },
+
+    setReady: (ready) => send({ t: 'ready', ready }),
+    addBot: (level) => send({ t: 'addBot', level }),
+    removePlayer: (playerId) => send({ t: 'remove', playerId }),
+    updateSettings: (settings) => send({ t: 'settings', settings }),
+    startGame: () => send({ t: 'start' }),
+
+    playCard: (cardId, requestedShape) => {
+      if (get().pendingCardId) return
+      set({ pendingCardId: cardId })
+      send({ t: 'action', action: { type: 'play', cardId, requestedShape } })
+    },
+    drawCard: () => send({ t: 'action', action: { type: 'draw' } }),
+    callLastCard: () => send({ t: 'action', action: { type: 'lastCard' } }),
+    catchPlayer: (targetId) => send({ t: 'action', action: { type: 'catch', targetId } }),
+    nextRound: () => send({ t: 'nextRound' }),
+    backToLobby: () => send({ t: 'backToLobby' }),
+    react: (emoji) => send({ t: 'react', emoji }),
+
+    toggleSound: () => {
+      const soundOn = !get().soundOn
+      setSoundEnabled(soundOn)
+      storage.set(local, 'whot:sound', soundOn)
+      set({ soundOn })
+    },
+
+    cycleHandSort: () => {
+      const order: HandSort[] = ['shape', 'number', 'none']
+      const handSort = order[(order.indexOf(get().handSort) + 1) % order.length]
+      storage.set(local, 'whot:sort', handSort)
+      set({ handSort })
+    },
+
+    clearFormError: () => set({ formError: null }),
+  }
+})

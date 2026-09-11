@@ -3,22 +3,141 @@
 @tailwind utilities;
 
 @layer base {
+  :root {
+    color-scheme: dark;
+
+    /* Indigo table, inspired by adire cloth. */
+    --table-950: 0.14 0.035 264;
+    --table-900: 0.19 0.045 264;
+    --table-800: 0.25 0.05 264;
+    --table-700: 0.32 0.055 264;
+    --table-600: 0.42 0.05 264;
+
+    /* Whot cards: cream stock, oxblood ink. */
+    --paper: 0.96 0.018 85;
+    --paper-dim: 0.9 0.025 80;
+    --ink: 0.44 0.15 25;
+    --ink-soft: 0.58 0.11 25;
+
+    --marigold: 0.82 0.15 78;
+    --marigold-deep: 0.72 0.16 65;
+    --leaf: 0.72 0.13 155;
+    --ember: 0.63 0.2 30;
+
+    --fg: 0.97 0.008 264;
+    --fg-muted: 0.78 0.02 264;
+    --fg-faint: 0.6 0.025 264;
+
+    --ease-quart: cubic-bezier(0.25, 1, 0.5, 1);
+  }
+
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
   body {
-    font-family: 'Inter', system-ui, sans-serif;
-    background: #0f3d26;
-    color: white;
-    overflow: hidden;
+    margin: 0;
+    background: oklch(var(--table-950));
+    color: oklch(var(--fg));
+    font-family: Inter, system-ui, -apple-system, sans-serif;
+    -webkit-font-smoothing: antialiased;
     touch-action: manipulation;
     -webkit-tap-highlight-color: transparent;
-    padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+    overscroll-behavior: none;
+  }
+
+  :focus-visible {
+    outline: 2px solid oklch(var(--marigold));
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+
+  button {
+    font: inherit;
+    color: inherit;
+  }
+
+  input {
+    font: inherit;
+  }
+}
+
+@layer components {
+  /* The table surface: lit in the middle, falling off at the edges. */
+  .felt {
+    background:
+      radial-gradient(120% 85% at 50% 38%, oklch(var(--table-800)) 0%, oklch(var(--table-900)) 45%, oklch(var(--table-950)) 100%);
+  }
+
+  .adire {
+    background-image:
+      radial-gradient(circle at center, oklch(var(--fg) / 0.05) 1.5px, transparent 1.6px),
+      radial-gradient(circle at center, oklch(var(--fg) / 0.035) 1px, transparent 1.1px);
+    background-size:
+      44px 44px,
+      44px 44px;
+    background-position:
+      0 0,
+      22px 22px;
+  }
+
+  .panel {
+    background: oklch(var(--table-900) / 0.92);
+    border: 1px solid oklch(var(--table-600) / 0.5);
+  }
+
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 font-semibold transition-colors;
+    min-height: 44px;
+  }
+
+  .btn-primary {
+    @apply btn bg-marigold text-table-950 hover:bg-marigold-deep active:bg-marigold-deep disabled:bg-marigold/40 disabled:text-table-950/60;
+  }
+
+  .btn-ghost {
+    @apply btn border border-table-600/60 bg-table-800/60 text-fg hover:bg-table-700/70 disabled:opacity-40;
+  }
+
+  .btn-icon {
+    @apply inline-flex items-center justify-center rounded-lg text-fg-muted transition-colors hover:bg-table-700/60 hover:text-fg;
+    min-height: 40px;
+    min-width: 40px;
+  }
+
+  .field {
+    @apply w-full rounded-xl border border-table-600/60 bg-table-950/60 px-4 py-3 text-fg placeholder:text-fg-faint focus:border-marigold focus:outline-none;
+  }
+
+  .chip {
+    @apply inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium;
   }
 }
 
 @layer utilities {
-  .card-shadow {
-    box-shadow: 0 2px 8px rgba(0,0,0,0.3), 0 1px 2px rgba(0,0,0,0.2);
+  .scrollbar-hide {
+    scrollbar-width: none;
   }
-  .card-shadow-lg {
-    box-shadow: 0 8px 24px rgba(0,0,0,0.4), 0 2px 6px rgba(0,0,0,0.3);
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+
+  .pad-safe-bottom {
+    padding-bottom: max(env(safe-area-inset-bottom), 0.5rem);
+  }
+  .pad-safe-top {
+    padding-top: max(env(safe-area-inset-top), 0.25rem);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
   }
 }
