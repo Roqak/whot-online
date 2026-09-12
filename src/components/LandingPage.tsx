@@ -46,8 +46,8 @@ export default function LandingPage() {
             </motion.div>
           ))}
         </div>
-        <h1 className="font-display text-5xl font-extrabold tracking-tight">Whot!</h1>
-        <p className="mt-1 text-sm text-fg-muted">The Nigerian card game, with your people, right now.</p>
+        <h1 className="font-display text-5xl font-extrabold tracking-tight">Last Card</h1>
+        <p className="mt-1 text-sm text-fg-muted">Whot, the Nigerian card game, with your people, right now.</p>
       </header>
 
       <div className="panel rounded-2xl p-4">

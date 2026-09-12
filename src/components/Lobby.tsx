@@ -72,10 +72,10 @@ export default function Lobby() {
   }
 
   const share = async () => {
-    const text = `Join my Whot game: ${roomUrl}`
+    const text = `Come play Whot with me on Last Card: ${roomUrl}`
     if (navigator.share) {
       try {
-        await navigator.share({ title: 'Whot! Online', text, url: roomUrl })
+        await navigator.share({ title: 'Last Card', text, url: roomUrl })
         return
       } catch {
         // Sharing cancelled: fall back to copying.

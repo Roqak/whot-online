@@ -1,4 +1,6 @@
-# Whot! Online
+# Last Card
+
+Play Whot, the Nigerian card game, online at [lastcard.fun](https://lastcard.fun).
 
 Multiplayer Whot: create a table, share the link, play with friends or bots. No signup.
 
