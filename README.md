@@ -31,6 +31,17 @@ HTML5 game portals (GameDistribution, Poki, CrazyGames and friends) host static 
 
 The portal build uses relative asset paths, leaves the address bar alone (it runs in someone else's iframe) and hides everything that needs a server: room codes, invites, watch links. `?solo=1` turns the same mode on in a normal build for testing.
 
+## Deploying to Railway
+
+[railway.json](railway.json) holds the whole setup: build with `npm run build`, start with `npm start`, health check on `/healthz`. Railway supplies `PORT`; no other environment variables are needed.
+
+1. In Railway, create a project from this GitHub repo on `main`.
+2. Generate a `*.up.railway.app` domain and play a round there before touching DNS.
+3. Under the service's networking settings, add `lastcard.fun` and `www.lastcard.fun` as custom domains. Railway shows the DNS records to create.
+4. Add those records at your DNS provider. A bare domain like `lastcard.fun` needs CNAME flattening or an ALIAS record; if the registrar can't do that, move DNS to Cloudflare (free) and leave the records **DNS only**, so Railway issues the HTTPS certificate itself.
+
+Keep it at **one replica**. Rooms live in that process's memory, so a second instance would split tables between machines, and every deploy ends the games in progress. Deploy when the tables are quiet.
+
 ## How it fits together
 
 | Path | What it does |
