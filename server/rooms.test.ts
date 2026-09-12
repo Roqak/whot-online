@@ -174,4 +174,47 @@ describe('RoomManager', () => {
     send(host, { t: 'settings', settings: { handSize: 99, turnSeconds: 12345 } })
     expect(host.last('lobby')!.lobby.settings).toMatchObject({ handSize: 8, turnSeconds: 30 })
   })
+
+  it('lets spectators watch without ever seeing a hand, and blocks them from playing', () => {
+    const { host, code } = hostRoom()
+    send(host, { t: 'addBot', level: 'normal' })
+    send(host, { t: 'start' })
+
+    const watcher = new FakeClient()
+    send(watcher, { t: 'watch', code, name: 'Nosy' })
+    expect(watcher.last('watching')?.code).toBe(code)
+
+    const view = watcher.last('game')!.view
+    expect(view.myId).toBe('')
+    expect(view.myHand).toEqual([])
+    expect(view.players.every((p) => p.handCount === 5)).toBe(true)
+    for (const card of host.last('game')!.view.myHand) {
+      expect(JSON.stringify(view)).not.toContain(card.id)
+    }
+
+    send(watcher, { t: 'action', action: { type: 'draw' } })
+    expect(watcher.last('error')?.code).toBe('forbidden')
+    expect(host.last('lobby')!.lobby.watchers).toBe(1)
+  })
+
+  it('passes spectator cheers to the table and forgets them when they leave', () => {
+    const { host, code } = hostRoom()
+    const watcher = new FakeClient()
+    send(watcher, { t: 'watch', code, name: 'Nosy' })
+    const target = host.last('welcome')!.playerId
+
+    send(watcher, { t: 'react', emoji: '👏', targetId: target })
+    expect(host.last('cheer')).toMatchObject({ from: 'Nosy', emoji: '👏', targetId: target, spectator: true })
+
+    manager.handleDisconnect(watcher)
+    expect(host.last('lobby')!.lobby.watchers).toBe(0)
+  })
+
+  it('tells spectators when the table closes', () => {
+    const { host, code } = hostRoom()
+    const watcher = new FakeClient()
+    send(watcher, { t: 'watch', code, name: 'Nosy' })
+    send(host, { t: 'leave' })
+    expect(watcher.last('error')?.code).toBe('room_not_found')
+  })
 })

@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import QRCode from 'qrcode'
-import { Check, Copy, Crown, LogOut, Play, QrCode, Share2, UserMinus, UserPlus, WifiOff } from 'lucide-react'
+import { Check, Copy, Crown, Eye, LogOut, Play, QrCode, Share2, UserMinus, UserPlus, WifiOff } from 'lucide-react'
+import { toast } from 'sonner'
 import { useGameStore } from '../store/gameStore'
+import { watchUrl } from '../net/protocol'
 import { MAX_PLAYERS, MIN_PLAYERS } from '../engine/gameEngine'
 import { BotLevel, SETTING_LIMITS } from '../types/game'
 import { Avatar } from './Avatar'
@@ -58,6 +60,16 @@ export default function Lobby() {
     }
   }
 
+  const copyWatchLink = async () => {
+    if (!lobby) return
+    try {
+      await navigator.clipboard.writeText(watchUrl(lobby.code))
+      toast('Watch link copied. They can watch in 3D and cheer, but not play.')
+    } catch {
+      toast(watchUrl(lobby.code))
+    }
+  }
+
   const share = async () => {
     const text = `Join my Whot game: ${roomUrl}`
     if (navigator.share) {
@@ -101,6 +113,12 @@ export default function Lobby() {
               <QrCode size={16} /> QR
             </button>
           </div>
+          <button
+            className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-lg py-1.5 text-xs text-fg-faint hover:text-fg"
+            onClick={copyWatchLink}
+          >
+            <Eye size={14} /> Copy a watch-only link (3D, no playing)
+          </button>
           <AnimatePresence>
             {showQr && (
               <motion.div
@@ -124,8 +142,13 @@ export default function Lobby() {
 
       <section className="mt-4 min-h-0 flex-1 overflow-y-auto px-4">
         <div className="flex items-center justify-between">
-          <p className="text-[11px] uppercase tracking-[0.2em] text-fg-faint">
+          <p className="flex items-center gap-2 text-[11px] uppercase tracking-[0.2em] text-fg-faint">
             Players {lobby.members.length}/{MAX_PLAYERS}
+            {lobby.watchers > 0 && (
+              <span className="flex items-center gap-1 text-ember">
+                <Eye size={12} /> {lobby.watchers}
+              </span>
+            )}
           </p>
           {isHost && lobby.members.length < MAX_PLAYERS && (
             <div className="relative">

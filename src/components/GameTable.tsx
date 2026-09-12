@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import confetti from 'canvas-confetti'
-import { ArrowDownUp, Check, Copy, HelpCircle, LogOut, Smile, Volume2, VolumeX } from 'lucide-react'
-import { useGameStore } from '../store/gameStore'
-import { REACTIONS } from '../net/protocol'
+import { ArrowDownUp, Check, Copy, Eye, HelpCircle, LogOut, Smile, Volume2, VolumeX } from 'lucide-react'
+import { toast } from 'sonner'
+import { Cheer, useGameStore } from '../store/gameStore'
+import { REACTIONS, playUrl, watchUrl } from '../net/protocol'
+import { describeEvent } from '../lib/events'
 import {
   GameEvent,
   GameView,
@@ -38,8 +40,10 @@ function Table({ view }: { view: GameView }) {
   const handSort = useGameStore((s) => s.handSort)
   const soundOn = useGameStore((s) => s.soundOn)
   const lastBatch = useGameStore((s) => s.lastBatch)
-  const reactions = useGameStore((s) => s.reactions)
+  const cheers = useGameStore((s) => s.cheers)
   const hostId = useGameStore((s) => s.lobby?.hostId)
+  const roomCode = useGameStore((s) => s.session?.code ?? '')
+  const watchers = useGameStore((s) => s.lobby?.watchers ?? 0)
   const playCard = useGameStore((s) => s.playCard)
   const drawCard = useGameStore((s) => s.drawCard)
   const callLastCard = useGameStore((s) => s.callLastCard)
@@ -47,7 +51,7 @@ function Table({ view }: { view: GameView }) {
   const nextRound = useGameStore((s) => s.nextRound)
   const backToLobby = useGameStore((s) => s.backToLobby)
   const leaveRoom = useGameStore((s) => s.leaveRoom)
-  const react = useGameStore((s) => s.react)
+  const cheer = useGameStore((s) => s.cheer)
   const cycleHandSort = useGameStore((s) => s.cycleHandSort)
   const toggleSound = useGameStore((s) => s.toggleSound)
 
@@ -120,50 +124,29 @@ function Table({ view }: { view: GameView }) {
     if (!lastBatch) return
     const mine = (id: string) => id === view.myId
     for (const event of lastBatch.events as GameEvent[]) {
+      const line = describeEvent(event, { nameOf, myId: view.myId })
+      if (line) announce(line.text, line.tone)
       switch (event.type) {
         case 'played':
           playSound(isSpecial(event.card) ? 'special' : 'play')
           break
-        case 'shapeRequested':
-          announce(`${nameOf(event.playerId)} asks for ${SHAPE_NAMES[event.shape]}`)
-          break
-        case 'holdOn':
-          announce(`${nameOf(event.playerId)} holds on`)
-          break
-        case 'suspended':
-          announce(mine(event.targetId) ? 'You are suspended' : `${nameOf(event.targetId)} is suspended`, 'bad')
-          break
         case 'pick':
           playSound('pick')
-          announce(mine(event.targetId) ? `Pick ${event.amount}!` : `${nameOf(event.targetId)} picks ${event.amount}`, mine(event.targetId) ? 'bad' : 'neutral')
-          break
-        case 'generalMarket':
-          announce('General market: everybody picks one', 'bad')
           break
         case 'drew':
           playSound('draw')
-          if (event.reason === 'timeout') announce(`${nameOf(event.playerId)} ran out of time`)
           break
         case 'lastCard':
           playSound('lastCard')
-          announce(`${mine(event.playerId) ? 'You' : nameOf(event.playerId)}: last card!`, 'good')
           if (!mine(event.playerId)) vibrate(20)
           break
         case 'caught':
           playSound('caught')
           vibrate([30, 40, 30])
-          announce(`${nameOf(event.byId)} caught ${mine(event.targetId) ? 'you' : nameOf(event.targetId)}`, mine(event.targetId) ? 'bad' : 'good')
           break
         case 'reshuffled':
-          playSound('shuffle')
-          announce('Market reshuffled')
-          break
-        case 'playerLeft':
-          announce(`${nameOf(event.playerId)} left the table`)
-          break
         case 'roundStarted':
           playSound('shuffle')
-          announce(`Round ${event.round}`)
           break
         case 'roundOver':
           playSound(mine(event.result.winnerId) ? 'win' : 'lose')
@@ -220,11 +203,20 @@ function Table({ view }: { view: GameView }) {
 
   const copyCode = async () => {
     try {
-      await navigator.clipboard.writeText(`${window.location.origin}/r/${codeFromUrl()}`)
+      await navigator.clipboard.writeText(playUrl(roomCode))
       setCopied(true)
       setTimeout(() => setCopied(false), 1800)
     } catch {
       // Clipboard blocked: the code is on screen anyway.
+    }
+  }
+
+  const copyWatchLink = async () => {
+    try {
+      await navigator.clipboard.writeText(watchUrl(roomCode))
+      toast('Watch link copied. Anyone with it can watch in 3D, but not play.')
+    } catch {
+      toast(watchUrl(roomCode))
     }
   }
 
@@ -287,13 +279,21 @@ function Table({ view }: { view: GameView }) {
                 aria-label="Copy the room link"
               >
                 {copied ? <Check size={13} className="text-leaf" /> : <Copy size={13} />}
-                {codeFromUrl()}
+                {roomCode}
               </button>
             </>
           )}
         </div>
 
         <div className="flex items-center gap-2">
+          <button
+            className={`chip px-2 text-[11px] ${watchers > 0 ? 'bg-ember/20 text-ember' : 'bg-table-800/70 text-fg-faint'}`}
+            onClick={copyWatchLink}
+            title="Copy a link for people to watch in 3D"
+          >
+            <Eye size={13} />
+            {watchers > 0 ? watchers : 'Watch link'}
+          </button>
           <span className="chip whitespace-nowrap bg-table-800/70 px-2 text-[11px] text-fg-muted">
             Round {view.round}
             {view.settings.targetScore > 0 && (
@@ -369,7 +369,7 @@ function Table({ view }: { view: GameView }) {
           />
         </div>
 
-        <ReactionBubbles reactions={reactions} nameOf={nameOf} />
+        <CheerBubbles cheers={cheers} />
 
         <AnimatePresence>
           {view.phase !== 'playing' && (
@@ -440,7 +440,7 @@ function Table({ view }: { view: GameView }) {
                   key={emoji}
                   className="rounded-lg bg-table-800/80 px-2 py-1 text-lg"
                   onClick={() => {
-                    react(emoji)
+                    cheer(emoji)
                     setShowReactions(false)
                   }}
                 >
@@ -559,31 +559,24 @@ function TurnBanner({ mine, over, name, avatar, fraction, seconds, urgent, label
   )
 }
 
-function ReactionBubbles({
-  reactions,
-  nameOf,
-}: {
-  reactions: { key: number; playerId: string; emoji: string }[]
-  nameOf: (id: string) => string
-}) {
+function CheerBubbles({ cheers }: { cheers: Cheer[] }) {
   return (
     <div className="pointer-events-none absolute bottom-2 left-1/2 z-20 -translate-x-1/2">
-      {reactions.map((reaction, i) => (
+      {cheers.map((cheer, i) => (
         <span
-          key={reaction.key}
+          key={cheer.key}
           className="absolute bottom-0 left-0 flex animate-rise items-center gap-1 whitespace-nowrap rounded-full bg-table-900/80 px-2 py-1 text-sm"
-          style={{ transform: `translateX(${(i % 3) * 40 - 40}px)` }}
+          style={{ transform: `translateX(${(i % 3) * 44 - 44}px)` }}
         >
-          {reaction.emoji}
-          <span className="text-[10px] text-fg-faint">{nameOf(reaction.playerId)}</span>
+          {cheer.emoji}
+          <span className="text-[10px] text-fg-faint">
+            {cheer.from}
+            {cheer.spectator && ' 👁'}
+          </span>
         </span>
       ))}
     </div>
   )
-}
-
-function codeFromUrl(): string {
-  return window.location.pathname.replace('/r/', '').toUpperCase()
 }
 
 function celebrate(big = false) {

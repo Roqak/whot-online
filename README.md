@@ -29,8 +29,17 @@ npm run lint
 | [server/attach.ts](server/attach.ts) | WebSocket layer, rate limiting, heartbeats |
 | [src/net/protocol.ts](src/net/protocol.ts) | Message types shared by client and server, with validation |
 | [src/store/gameStore.ts](src/store/gameStore.ts) | Client state and the socket connection |
+| [src/components/watch/](src/components/watch/) | Spectator screen and the Three.js table |
 
 The server owns the game. Clients send actions and receive a redacted view, so a player only ever sees their own hand. The engine is pure and deterministic given an RNG, which is what the tests use.
+
+## Watching
+
+Every room has a second link, `/w/CODE`, which the host can copy from the lobby or the game header. It opens a 3D table: orbit, spin, or drop into any player's seat, with cards flying from the seat that played them and a running commentary feed.
+
+Spectators have no seat. The server never sends them a hand, only counts, so the redaction is enforced server-side rather than hidden in the interface. They can cheer, at the whole table or at one player, and those cheers appear for the players and float above the table in 3D. Anything else they send is refused.
+
+The Three.js bundle is loaded only when a watch link is opened, so players never download it. Without WebGL the page falls back to a flat view with the same commentary.
 
 ## House rules
 
