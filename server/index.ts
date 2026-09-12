@@ -3,6 +3,7 @@ import { stat } from 'node:fs/promises'
 import http from 'node:http'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { createGzip } from 'node:zlib'
 import { attachGameServer } from './attach'
 
 const PORT = Number(process.env.PORT ?? 3000)
@@ -20,6 +21,8 @@ const MIME: Record<string, string> = {
   '.webmanifest': 'application/manifest+json',
   '.woff2': 'font/woff2',
 }
+
+const COMPRESSIBLE = new Set(['.html', '.js', '.css', '.svg', '.json', '.webmanifest'])
 
 async function resolveFile(urlPath: string): Promise<string | null> {
   let decoded: string
@@ -52,17 +55,38 @@ const server = http.createServer(async (req, res) => {
     return res.end()
   }
 
-  // Unknown paths fall back to the app shell so room links like /r/ABC123 work.
-  const file = (await resolveFile(pathname)) ?? path.join(STATIC_ROOT, 'index.html')
-  const immutable = pathname.startsWith('/assets/')
+  const isAsset = pathname.startsWith('/assets/')
+  const found = await resolveFile(pathname)
+
+  // A missing hashed asset is a real 404. Falling back to index.html here would cache
+  // HTML under a script's URL for a year, and break old tabs after every deploy.
+  if (!found && isAsset) {
+    res.writeHead(404, { 'Content-Type': 'text/plain', 'Cache-Control': 'no-store' })
+    return res.end('Not found')
+  }
+
+  // Unknown app paths fall back to the shell so room links like /r/ABC123 work.
+  const file = found ?? path.join(STATIC_ROOT, 'index.html')
+  const ext = path.extname(file)
+  const gzip = COMPRESSIBLE.has(ext) && /\bgzip\b/.test(String(req.headers['accept-encoding'] ?? ''))
+
   res.writeHead(200, {
-    'Content-Type': MIME[path.extname(file)] ?? 'application/octet-stream',
-    'Cache-Control': immutable ? 'public, max-age=31536000, immutable' : 'no-cache',
+    'Content-Type': MIME[ext] ?? 'application/octet-stream',
+    'Cache-Control': isAsset && found ? 'public, max-age=31536000, immutable' : 'no-cache',
+    Vary: 'Accept-Encoding',
+    ...(gzip ? { 'Content-Encoding': 'gzip' } : {}),
   })
   if (req.method === 'HEAD') return res.end()
-  createReadStream(file)
-    .on('error', () => res.destroy())
-    .pipe(res)
+
+  const source = createReadStream(file).on('error', () => res.destroy())
+  if (gzip) {
+    source
+      .pipe(createGzip())
+      .on('error', () => res.destroy())
+      .pipe(res)
+  } else {
+    source.pipe(res)
+  }
 })
 
 attachGameServer(server)
