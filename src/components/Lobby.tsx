@@ -24,6 +24,7 @@ export default function Lobby() {
   const removePlayer = useGameStore((s) => s.removePlayer)
   const updateSettings = useGameStore((s) => s.updateSettings)
   const startGame = useGameStore((s) => s.startGame)
+  const isLocal = useGameStore((s) => s.isLocal)
 
   const [copied, setCopied] = useState(false)
   const [showQr, setShowQr] = useState(false)
@@ -96,7 +97,7 @@ export default function Lobby() {
         <span className="w-10" />
       </header>
 
-      <section className="px-4">
+      <section className={`px-4 ${isLocal ? 'hidden' : ''}`}>
         <div className="panel rounded-2xl p-4">
           <p className="text-[11px] uppercase tracking-[0.2em] text-fg-faint">Room code</p>
           <div className="mt-1 flex items-center gap-3">

@@ -4,7 +4,16 @@ import type { BotLevel, GameEvent, GameSettings, GameView, Suit } from '../types
 import { AVATARS } from '../lib/avatars'
 import { playSound, setSoundEnabled } from '../lib/sound'
 import { ConnectionStatus, GameConnection, socketUrl } from '../net/connection'
+import { LocalTable } from '../net/localTable'
 import { ClientMessage, LobbyView, Reaction, ServerMessage, normalizeRoomCode } from '../net/protocol'
+
+/**
+ * The portal build has no server: the game runs in the browser instead.
+ * `?solo=1` turns it on in a normal build for testing.
+ */
+const LOCAL_ONLY =
+  import.meta.env.VITE_LOCAL_ONLY === '1' ||
+  (typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('solo'))
 
 export interface Profile {
   name: string
@@ -50,6 +59,8 @@ interface StoreState {
   inviteCode: string | null
   soundOn: boolean
   handSort: HandSort
+  /** True when there is no server: solo against bots, for portal builds. */
+  isLocal: boolean
 
   setProfile: (profile: Partial<Profile>) => void
   createRoom: (opts?: { quickPlay?: boolean }) => void
@@ -104,18 +115,29 @@ function codeFromPath(prefix: 'r' | 'w'): string | null {
 }
 
 function setUrl(path: string) {
+  // A portal serves the game from an iframe: leave the address bar alone.
+  if (LOCAL_ONLY) return
   if (typeof window !== 'undefined' && window.location.pathname !== path) {
     window.history.replaceState(null, '', path)
   }
 }
 
 let connection: GameConnection | null = null
+let localTable: LocalTable | null = null
 let quickPlayPending = false
 let batchSeq = 0
 let cheerSeq = 0
 
 export const useGameStore = create<StoreState>((set, get) => {
   const send = (msg: ClientMessage) => {
+    if (LOCAL_ONLY) {
+      if (!localTable) {
+        localTable = new LocalTable(handleMessage)
+        set({ status: 'open' })
+      }
+      localTable.handle(msg)
+      return
+    }
     if (!connection) {
       connection = new GameConnection(socketUrl(), {
         onMessage: handleMessage,
@@ -220,8 +242,8 @@ export const useGameStore = create<StoreState>((set, get) => {
     }
   }
 
-  const session = storage.get<Session | null>(tab, 'whot:session', null)
-  const watchCode = codeFromPath('w') ?? storage.get<string | null>(tab, 'whot:watching', null)
+  const session = LOCAL_ONLY ? null : storage.get<Session | null>(tab, 'whot:session', null)
+  const watchCode = LOCAL_ONLY ? null : (codeFromPath('w') ?? storage.get<string | null>(tab, 'whot:watching', null))
   const soundOn = storage.get(local, 'whot:sound', true)
   setSoundEnabled(soundOn)
 
@@ -249,6 +271,7 @@ export const useGameStore = create<StoreState>((set, get) => {
     inviteCode: codeFromPath('r'),
     soundOn,
     handSort: storage.get<HandSort>(local, 'whot:sort', 'shape'),
+    isLocal: LOCAL_ONLY,
 
     setProfile: (patch) => {
       const next = { ...get().profile, ...patch }

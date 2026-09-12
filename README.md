@@ -18,6 +18,17 @@ npm test           # engine and server tests
 npm run lint
 ```
 
+## Two builds
+
+```bash
+npm run build          # dist/       the online game: rooms, links, 3D spectators
+npm run build:portal   # dist-portal/ solo against bots, no server at all
+```
+
+HTML5 game portals (GameDistribution, Poki, CrazyGames and friends) host static files and will not run a backend, so the portal build drops the socket and runs the game in the browser instead. [localTable.ts](src/net/localTable.ts) speaks the same message protocol as the server, so the interface cannot tell which one it is talking to, and both use the same engine and the same bots: the rules cannot drift apart.
+
+The portal build uses relative asset paths, leaves the address bar alone (it runs in someone else's iframe) and hides everything that needs a server: room codes, invites, watch links. `?solo=1` turns the same mode on in a normal build for testing.
+
 ## How it fits together
 
 | Path | What it does |
@@ -29,6 +40,7 @@ npm run lint
 | [server/attach.ts](server/attach.ts) | WebSocket layer, rate limiting, heartbeats |
 | [src/net/protocol.ts](src/net/protocol.ts) | Message types shared by client and server, with validation |
 | [src/store/gameStore.ts](src/store/gameStore.ts) | Client state and the socket connection |
+| [src/net/localTable.ts](src/net/localTable.ts) | The same game with no server, for the portal build |
 | [src/components/watch/](src/components/watch/) | Spectator screen and the Three.js table |
 
 The server owns the game. Clients send actions and receive a redacted view, so a player only ever sees their own hand. The engine is pure and deterministic given an RNG, which is what the tests use.

@@ -44,6 +44,7 @@ function Table({ view }: { view: GameView }) {
   const hostId = useGameStore((s) => s.lobby?.hostId)
   const roomCode = useGameStore((s) => s.session?.code ?? '')
   const watchers = useGameStore((s) => s.lobby?.watchers ?? 0)
+  const isLocal = useGameStore((s) => s.isLocal)
   const playCard = useGameStore((s) => s.playCard)
   const drawCard = useGameStore((s) => s.drawCard)
   const callLastCard = useGameStore((s) => s.callLastCard)
@@ -273,27 +274,31 @@ function Table({ view }: { view: GameView }) {
               <button className="btn-icon" onClick={() => setConfirmLeave(true)} aria-label="Leave game">
                 <LogOut size={18} />
               </button>
-              <button
-                className="chip text-xs text-fg-faint hover:text-fg"
-                onClick={copyCode}
-                aria-label="Copy the room link"
-              >
-                {copied ? <Check size={13} className="text-leaf" /> : <Copy size={13} />}
-                {roomCode}
-              </button>
+              {!isLocal && (
+                <button
+                  className="chip text-xs text-fg-faint hover:text-fg"
+                  onClick={copyCode}
+                  aria-label="Copy the room link"
+                >
+                  {copied ? <Check size={13} className="text-leaf" /> : <Copy size={13} />}
+                  {roomCode}
+                </button>
+              )}
             </>
           )}
         </div>
 
         <div className="flex items-center gap-2">
-          <button
-            className={`chip px-2 text-[11px] ${watchers > 0 ? 'bg-ember/20 text-ember' : 'bg-table-800/70 text-fg-faint'}`}
-            onClick={copyWatchLink}
-            title="Copy a link for people to watch in 3D"
-          >
-            <Eye size={13} />
-            {watchers > 0 ? watchers : 'Watch link'}
-          </button>
+          {!isLocal && (
+            <button
+              className={`chip px-2 text-[11px] ${watchers > 0 ? 'bg-ember/20 text-ember' : 'bg-table-800/70 text-fg-faint'}`}
+              onClick={copyWatchLink}
+              title="Copy a link for people to watch in 3D"
+            >
+              <Eye size={13} />
+              {watchers > 0 ? watchers : 'Watch link'}
+            </button>
+          )}
           <span className="chip whitespace-nowrap bg-table-800/70 px-2 text-[11px] text-fg-muted">
             Round {view.round}
             {view.settings.targetScore > 0 && (
