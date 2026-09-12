@@ -25,9 +25,195 @@
       href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=Inter:wght@400;500;600;700&display=swap"
       rel="stylesheet"
     />
+    <!-- Boot screen styles are inline: they must work even if the app's own CSS fails to load. -->
+    <style>
+      #boot {
+        position: fixed;
+        inset: 0;
+        z-index: 1;
+        display: grid;
+        place-items: center;
+        padding: 24px;
+        background: #0e1022;
+        color: #efe9dc;
+        font: 15px/1.5 system-ui, -apple-system, 'Segoe UI', sans-serif;
+        text-align: center;
+        /* Held back briefly so a fast load never flashes it. */
+        animation: boot-in 0.2s 0.5s both;
+      }
+      #boot[hidden],
+      #boot [hidden] {
+        display: none !important;
+      }
+      .boot-card {
+        max-width: 22rem;
+      }
+      .boot-mark {
+        width: 44px;
+        height: 60px;
+        margin: 0 auto 18px;
+        border-radius: 8px;
+        background: #f5eee1;
+        box-shadow: 12px -4px 0 -2px rgba(245, 238, 225, 0.22);
+        animation: boot-deal 1.4s ease-in-out infinite;
+      }
+      .boot-title {
+        margin: 0;
+        font-weight: 600;
+      }
+      .boot-hint {
+        margin: 8px 0 0;
+        color: #b9b3c9;
+        font-size: 14px;
+      }
+      .boot-error {
+        margin: 12px 0 0;
+        color: #e8907c;
+        font: 12px/1.45 ui-monospace, Menlo, Consolas, monospace;
+        overflow-wrap: anywhere;
+      }
+      .boot-reload {
+        margin-top: 18px;
+        padding: 10px 20px;
+        border: 0;
+        border-radius: 10px;
+        background: #f2c14e;
+        color: #15172c;
+        font: 600 14px system-ui, sans-serif;
+        cursor: pointer;
+      }
+      @keyframes boot-in {
+        from {
+          opacity: 0;
+        }
+        to {
+          opacity: 1;
+        }
+      }
+      @keyframes boot-deal {
+        0%,
+        100% {
+          transform: rotate(-6deg);
+        }
+        50% {
+          transform: rotate(6deg);
+        }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .boot-mark {
+          animation: none;
+        }
+      }
+    </style>
   </head>
   <body>
+    <div id="boot" role="status" aria-live="polite">
+      <div class="boot-card">
+        <div class="boot-mark" aria-hidden="true"></div>
+        <p class="boot-title">Dealing the cards…</p>
+        <p class="boot-hint" hidden>
+          This is taking longer than it should. Refresh the page, or try again with browser extensions turned off.
+        </p>
+        <p class="boot-error" hidden></p>
+        <button class="boot-reload" type="button" hidden>Refresh</button>
+      </div>
+    </div>
     <div id="root"></div>
+    <noscript>
+      <p style="position: fixed; inset: auto 0 40%; text-align: center; color: #efe9dc; font: 15px system-ui, sans-serif">
+        Last Card needs JavaScript turned on to deal the cards.
+      </p>
+    </noscript>
+    <!--
+      Until the game draws itself, this keeps the page from ever sitting blank.
+      It lives outside #root and watches it, so it also covers a crash after the
+      game has mounted. Plain ES5, no dependencies: it must run where the app cannot.
+    -->
+    <script>
+      ;(function () {
+        var boot = document.getElementById('boot')
+        var root = document.getElementById('root')
+        var title = boot.querySelector('.boot-title')
+        var hint = boot.querySelector('.boot-hint')
+        var detail = boot.querySelector('.boot-error')
+        var reload = boot.querySelector('.boot-reload')
+        var failed = false
+        var crashed = false
+        var everMounted = false
+
+        reload.onclick = function () {
+          location.reload()
+        }
+
+        function mounted() {
+          return root.childElementCount > 0
+        }
+
+        function trouble(message) {
+          if (mounted()) return
+          boot.hidden = false
+          title.textContent = crashed ? 'Something went wrong' : failed ? 'The game could not load' : 'Still dealing…'
+          hint.textContent = crashed
+            ? 'Refresh to get back to the table.'
+            : failed
+              ? 'Refresh the page, or try again with browser extensions turned off.'
+              : 'This is taking longer than it should. Refresh the page, or try again with browser extensions turned off.'
+          hint.hidden = false
+          reload.hidden = false
+          if (message) {
+            detail.textContent = String(message).slice(0, 300)
+            detail.hidden = false
+          }
+        }
+
+        new MutationObserver(function () {
+          if (mounted()) {
+            everMounted = true
+            boot.hidden = true
+          } else if (everMounted) {
+            // The game was up and then emptied itself: it crashed.
+            failed = true
+            crashed = true
+            trouble(detail.textContent)
+          }
+        }).observe(root, { childList: true })
+
+        // Only the game's own files are fatal. A blocked font or tracker is not.
+        function ours(url) {
+          return typeof url === 'string' && url.indexOf(location.origin) === 0
+        }
+
+        window.addEventListener(
+          'error',
+          function (event) {
+            var target = event.target
+            if (target && target !== window && (target.tagName === 'SCRIPT' || target.tagName === 'LINK')) {
+              var url = target.src || target.href
+              if (!ours(url)) return
+              failed = true
+              trouble('Could not load ' + url)
+            } else if (event.message) {
+              failed = true
+              detail.textContent = String(event.message).slice(0, 300)
+              trouble(event.message)
+            }
+          },
+          true,
+        )
+
+        window.addEventListener('unhandledrejection', function (event) {
+          var reason = event.reason
+          var message = reason && reason.message ? reason.message : String(reason)
+          if (mounted()) return
+          failed = true
+          trouble(message)
+        })
+
+        setTimeout(function () {
+          trouble()
+        }, 8000)
+      })()
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
