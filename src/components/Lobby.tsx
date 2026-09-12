@@ -5,6 +5,7 @@ import { Check, Copy, Crown, Eye, LogOut, Play, QrCode, Share2, UserMinus, UserP
 import { toast } from 'sonner'
 import { useGameStore } from '../store/gameStore'
 import { watchUrl } from '../net/protocol'
+import { copyText, shareOrCopy } from '../lib/share'
 import { MAX_PLAYERS, MIN_PLAYERS } from '../engine/gameEngine'
 import { BotLevel, PICK_DEFENCE_LABELS, SETTING_LIMITS } from '../types/game'
 import { Avatar } from './Avatar'
@@ -52,36 +53,19 @@ export default function Lobby() {
   const canStart = lobby.members.length >= MIN_PLAYERS && humansWaiting.length === 0
 
   const copy = async () => {
-    try {
-      await navigator.clipboard.writeText(roomUrl)
-      setCopied(true)
-      setTimeout(() => setCopied(false), 1800)
-    } catch {
-      setCopied(false)
-    }
+    const ok = await copyText(roomUrl)
+    setCopied(ok)
+    if (ok) setTimeout(() => setCopied(false), 1800)
   }
 
   const copyWatchLink = async () => {
     if (!lobby) return
-    try {
-      await navigator.clipboard.writeText(watchUrl(lobby.code))
-      toast('Watch link copied. They can watch in 3D and cheer, but not play.')
-    } catch {
-      toast(watchUrl(lobby.code))
-    }
+    const ok = await copyText(watchUrl(lobby.code))
+    toast(ok ? 'Watch link copied. They can watch in 3D and cheer, but not play.' : watchUrl(lobby.code))
   }
 
   const share = async () => {
-    const text = `Come play Whot with me on Last Card: ${roomUrl}`
-    if (navigator.share) {
-      try {
-        await navigator.share({ title: 'Last Card', text, url: roomUrl })
-        return
-      } catch {
-        // Sharing cancelled: fall back to copying.
-      }
-    }
-    void copy()
+    await shareOrCopy('Come play Whot with me on Last Card!', roomUrl)
   }
 
   return (

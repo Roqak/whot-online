@@ -26,7 +26,7 @@ export function RoundOverlay({ view, isHost, secondsLeft, onNextRound, onBackToL
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="absolute inset-0 z-40 flex items-center justify-center bg-table-950/85 px-4 backdrop-blur-sm"
+      className="absolute inset-0 z-40 flex items-center justify-center bg-table-950/85 px-4"
       role="dialog"
       aria-modal="true"
       aria-label={matchOver ? 'Match over' : 'Round over'}

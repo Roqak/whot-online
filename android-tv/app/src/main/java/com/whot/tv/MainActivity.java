@@ -1,10 +1,14 @@
 package com.whot.tv;
 
 import android.annotation.SuppressLint;
+import android.app.Activity;
 import android.content.Context;
 import android.content.SharedPreferences;
 import android.graphics.Color;
+import android.graphics.Typeface;
+import android.graphics.drawable.GradientDrawable;
 import android.os.Bundle;
+import android.util.Log;
 import android.view.Gravity;
 import android.view.KeyEvent;
 import android.view.View;
@@ -16,20 +20,24 @@ import android.webkit.WebViewClient;
 import android.widget.EditText;
 import android.widget.FrameLayout;
 import android.widget.LinearLayout;
+import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
-
-import android.app.Activity;
 
 /**
  * Android TV viewer for Whot! Online. Shows the live 3D table for a room code:
  * first launch asks for the server URL, then a D-pad friendly code entry
  * screen, then the /w/CODE watch page in a fullscreen WebView.
+ *
+ * Any startup crash is caught and painted on screen so a TV without adb
+ * still shows what went wrong.
  */
 public class MainActivity extends Activity {
 
     private static final String PREFS = "whot_tv";
     private static final String KEY_SERVER = "server_url";
+    private static final String DEFAULT_SERVER = "http://192.168.18.17:5000";
+    private static final String TAG = "WhotTV";
 
     private FrameLayout root;
     private WebView webView;
@@ -38,28 +46,64 @@ public class MainActivity extends Activity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        getWindow().setFlags(
-                WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON,
-                WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+        getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         prefs = getSharedPreferences(PREFS, Context.MODE_PRIVATE);
 
         root = new FrameLayout(this);
         root.setBackgroundColor(Color.parseColor("#0b0e14"));
         setContentView(root);
 
-        String server = prefs.getString(KEY_SERVER, null);
-        if (server == null) {
-            showServerSetup();
-        } else {
+        try {
+            String server = prefs.getString(KEY_SERVER, DEFAULT_SERVER);
             showCodeEntry(server);
+        } catch (Throwable t) {
+            Log.e(TAG, "startup failed", t);
+            showCrash(t);
         }
+    }
+
+    private void showCrash(Throwable t) {
+        root.removeAllViews();
+        root.addView(crashView(t), new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+    }
+
+    private LinearLayout crashView(Throwable t) {
+        java.io.StringWriter sw = new java.io.StringWriter();
+        t.printStackTrace(new java.io.PrintWriter(sw));
+        final String text = t.getClass().getName() + "\n\n" + sw.toString();
+
+        LinearLayout panel = new LinearLayout(this);
+        panel.setOrientation(LinearLayout.VERTICAL);
+        panel.setPadding(dp(32), dp(24), dp(32), dp(24));
+
+        TextView title = new TextView(this);
+        title.setText("Whot! TV hit an error");
+        title.setTextColor(Color.parseColor("#ff6b6b"));
+        title.setTextSize(22);
+        title.setTypeface(Typeface.DEFAULT_BOLD);
+        panel.addView(title);
+
+        ScrollView scroll = new ScrollView(this);
+        TextView body = new TextView(this);
+        body.setText(text);
+        body.setTextColor(Color.WHITE);
+        body.setTextSize(13);
+        body.setTypeface(Typeface.MONOSPACE);
+        body.setPadding(0, dp(16), 0, dp(16));
+        scroll.addView(body);
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f);
+        panel.addView(scroll, lp);
+        return panel;
     }
 
     // ---------------------------------------------------------------- setup
 
     private void showServerSetup() {
         LinearLayout panel = textPanel("Whot! TV", "Enter your Whot server address");
-        final EditText input = makeInput("https://your-server.example.com");
+        final EditText input = makeInput(prefs.getString(KEY_SERVER, DEFAULT_SERVER));
+        input.setText(prefs.getString(KEY_SERVER, DEFAULT_SERVER));
         panel.addView(input);
         TextView go = makeButton("Save");
         go.setOnClickListener(v -> {
@@ -90,6 +134,9 @@ public class MainActivity extends Activity {
         TextView go = makeButton("Watch");
         go.setOnClickListener(v -> openWatch(server, input.getText().toString()));
         panel.addView(go);
+        TextView change = makeButton("Change server");
+        change.setOnClickListener(v -> showServerSetup());
+        panel.addView(change);
         root.addView(panel);
         input.requestFocus();
     }
@@ -100,8 +147,7 @@ public class MainActivity extends Activity {
             toast("Enter a room code");
             return;
         }
-        String url = server + "/w/" + code;
-        openWebView(url);
+        openWebView(server + "/w/" + code);
     }
 
     private static String normalizeCode(String raw) {
@@ -127,18 +173,7 @@ public class MainActivity extends Activity {
         s.setLoadWithOverviewMode(true);
         s.setUseWideViewPort(true);
         webView.setBackgroundColor(Color.parseColor("#0b0e14"));
-        webView.setWebViewClient(new WebViewClient() {
-            @Override
-            public boolean shouldOverrideUrlLoading(WebView view, String url) {
-                return false;
-            }
-
-            @Override
-            public void onPageFinished(WebView view, String pageUrl) {
-                // If the room is gone the watch page shows its own message;
-                // a long press on BACK (handled in onKeyDown) exits to code entry.
-            }
-        });
+        webView.setWebViewClient(new WebViewClient());
         root.addView(webView, new FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
         webView.loadUrl(url);
@@ -152,8 +187,6 @@ public class MainActivity extends Activity {
         panel.setOrientation(LinearLayout.VERTICAL);
         panel.setGravity(Gravity.CENTER);
         panel.setPadding(dp(48), dp(24), dp(48), dp(24));
-        root.addView(panel, new FrameLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
 
         TextView titleView = new TextView(this);
         titleView.setText(title);
@@ -180,7 +213,11 @@ public class MainActivity extends Activity {
         input.setTextSize(24);
         input.setGravity(Gravity.CENTER);
         input.setMaxLines(1);
-        input.setBackgroundResource(android.R.drawable.editbox_background_normal);
+        GradientDrawable box = new GradientDrawable();
+        box.setColor(Color.parseColor("#1c2230"));
+        box.setCornerRadius(dp(10));
+        box.setStroke(dp(2), Color.parseColor("#3a4356"));
+        input.setBackground(box);
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(dp(560), dp(64));
         lp.gravity = Gravity.CENTER_HORIZONTAL;
         input.setLayoutParams(lp);
@@ -190,17 +227,25 @@ public class MainActivity extends Activity {
     private TextView makeButton(String label) {
         TextView btn = new TextView(this);
         btn.setText(label);
-        btn.setTextColor(Color.WHITE);
         btn.setTextSize(20);
         btn.setGravity(Gravity.CENTER);
-        btn.setBackgroundResource(android.R.drawable.button_onoff_indicator_off);
         btn.setFocusable(true);
+        GradientDrawable pill = new GradientDrawable();
+        pill.setColor(Color.parseColor("#ffd166"));
+        pill.setCornerRadius(dp(30));
+        btn.setBackground(pill);
+        btn.setTextColor(Color.parseColor("#0b0e14"));
+        btn.setOnFocusChangeListener((v, hasFocus) -> {
+            GradientDrawable g = new GradientDrawable();
+            g.setColor(Color.parseColor(hasFocus ? "#ffe08a" : "#7a6636"));
+            g.setCornerRadius(dp(30));
+            btn.setBackground(g);
+            btn.setTextColor(hasFocus ? Color.parseColor("#0b0e14") : Color.WHITE);
+        });
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(dp(280), dp(60));
         lp.gravity = Gravity.CENTER_HORIZONTAL;
         lp.topMargin = dp(24);
         btn.setLayoutParams(lp);
-        btn.setOnFocusChangeListener((v, hasFocus) ->
-                btn.setTextColor(hasFocus ? Color.parseColor("#ffd166") : Color.WHITE));
         return btn;
     }
 
@@ -216,11 +261,14 @@ public class MainActivity extends Activity {
 
     @Override
     public boolean onKeyDown(int keyCode, KeyEvent event) {
-        // On the watch screen, long-press BACK leaves the game for code entry;
-        // a short press keeps the WebView's own back handling.
-        if (keyCode == KeyEvent.KEYCODE_BACK && webView != null
-                && event.getRepeatCount() > 0) {
-            exitWatch();
+        // From code entry, long-press BACK opens the server address screen;
+        // on the watch screen, long-press BACK returns to code entry.
+        if (keyCode == KeyEvent.KEYCODE_BACK && event.getRepeatCount() > 0) {
+            if (webView != null) {
+                exitWatch();
+            } else {
+                showServerSetup();
+            }
             return true;
         }
         return super.onKeyDown(keyCode, event);

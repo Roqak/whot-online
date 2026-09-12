@@ -6,6 +6,7 @@ import LandingPage from './components/LandingPage'
 import Lobby from './components/Lobby'
 import WatchScreen from './components/watch/WatchScreen'
 import { ConnectionBanner } from './components/ConnectionBanner'
+import { ErrorBoundary } from './components/ErrorBoundary'
 import { useGameStore } from './store/gameStore'
 import { unlockAudio } from './lib/sound'
 
@@ -31,6 +32,7 @@ export default function App() {
   return (
     <MotionConfig reducedMotion="user">
       <div className="felt adire relative h-full w-full overflow-hidden">
+        <ErrorBoundary>
         <AnimatePresence mode="wait">
           <motion.main
             key={screen}
@@ -65,6 +67,7 @@ export default function App() {
             },
           }}
         />
+        </ErrorBoundary>
       </div>
     </MotionConfig>
   )

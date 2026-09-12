@@ -17,6 +17,7 @@ import {
   isSpecial,
 } from '../types/game'
 import { sortHand } from '../lib/hand'
+import { copyText } from '../lib/share'
 import { useCountdown, useOnChange } from '../lib/hooks'
 import { playSound, vibrate } from '../lib/sound'
 import { Avatar } from './Avatar'
@@ -203,22 +204,14 @@ function Table({ view }: { view: GameView }) {
   }
 
   const copyCode = async () => {
-    try {
-      await navigator.clipboard.writeText(playUrl(roomCode))
-      setCopied(true)
-      setTimeout(() => setCopied(false), 1800)
-    } catch {
-      // Clipboard blocked: the code is on screen anyway.
-    }
+    const ok = await copyText(playUrl(roomCode))
+    setCopied(ok)
+    if (ok) setTimeout(() => setCopied(false), 1800)
   }
 
   const copyWatchLink = async () => {
-    try {
-      await navigator.clipboard.writeText(watchUrl(roomCode))
-      toast('Watch link copied. Anyone with it can watch in 3D, but not play.')
-    } catch {
-      toast(watchUrl(roomCode))
-    }
+    const ok = await copyText(watchUrl(roomCode))
+    toast(ok ? 'Watch link copied. Anyone with it can watch in 3D, but not play.' : watchUrl(roomCode))
   }
 
   const entryOffset = useMemo(() => {
