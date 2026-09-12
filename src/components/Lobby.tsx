@@ -6,7 +6,7 @@ import { toast } from 'sonner'
 import { useGameStore } from '../store/gameStore'
 import { watchUrl } from '../net/protocol'
 import { MAX_PLAYERS, MIN_PLAYERS } from '../engine/gameEngine'
-import { BotLevel, SETTING_LIMITS } from '../types/game'
+import { BotLevel, PICK_DEFENCE_LABELS, SETTING_LIMITS } from '../types/game'
 import { Avatar } from './Avatar'
 
 const BOT_LEVELS: { value: BotLevel; label: string }[] = [
@@ -278,21 +278,23 @@ export default function Lobby() {
                 </button>
               </div>
             </div>
-            <label className="flex items-center justify-between gap-3 text-sm text-fg-muted">
-              <span>Defend picks with 2 and 5</span>
-              <input
-                type="checkbox"
-                className="h-5 w-5 accent-[oklch(var(--marigold))]"
-                checked={lobby.settings.stackPicks}
-                disabled={!isHost}
-                onChange={(e) => updateSettings({ stackPicks: e.target.checked })}
-              />
-            </label>
+            <Segmented
+              label="Picks"
+              value={lobby.settings.pickDefence}
+              options={SETTING_LIMITS.pickDefences.map((value) => ({ value, label: PICK_DEFENCE_LABELS[value] }))}
+              disabled={!isHost}
+              onChange={(pickDefence) => updateSettings({ pickDefence })}
+            />
           </div>
           <p className="mt-3 text-[11px] leading-relaxed text-fg-faint">
             {lobby.settings.targetScore > 0
               ? `Cards left in your hand score against you. Reach ${lobby.settings.targetScore} and you are out; last player standing wins.`
-              : 'One hand only. Whoever empties their hand first wins.'}
+              : 'One hand only. Whoever empties their hand first wins.'}{' '}
+            {lobby.settings.pickDefence === 'stack'
+              ? 'Answering a pick with the same number grows the total.'
+              : lobby.settings.pickDefence === 'pass'
+                ? 'Answering a pick with the same number sends the same penalty on.'
+                : 'Picks cannot be answered: go to market.'}
             {!isHost && ' Only the host can change these.'}
           </p>
         </div>
@@ -318,7 +320,7 @@ export default function Lobby() {
   )
 }
 
-function Segmented<T extends number>({
+function Segmented<T extends string | number>({
   label,
   value,
   options,

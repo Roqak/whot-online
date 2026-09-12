@@ -58,13 +58,30 @@ export function handPoints(hand: Card[]): number {
   return hand.reduce((sum, card) => sum + cardPoints(card), 0)
 }
 
+/** How a Pick Two or Pick Three can be answered. Tables disagree, so it is a setting. */
+export type PickDefence =
+  /** Defend with the same number and the total grows: 3, then 6, then 9. */
+  | 'stack'
+  /** Defend with the same number and the same penalty moves on: 3 stays 3. */
+  | 'pass'
+  /** No defending. Whoever is hit goes to market. */
+  | 'none'
+
+export const PICK_DEFENCES: PickDefence[] = ['stack', 'pass', 'none']
+
+export const PICK_DEFENCE_LABELS: Record<PickDefence, string> = {
+  stack: 'Stack up',
+  pass: 'Pass on',
+  none: 'No defence',
+}
+
 export interface GameSettings {
   /** Cards dealt to each player per round. */
   handSize: number
   /** Penalty points at which a player is eliminated. 0 plays a single round. */
   targetScore: number
-  /** Allow defending Pick Two with a 2 and Pick Three with a 5, passing the total on. */
-  stackPicks: boolean
+  /** What a player may do about a Pick Two or Pick Three aimed at them. */
+  pickDefence: PickDefence
   /** Seconds a player has to act before auto-drawing. 0 disables the timer. */
   turnSeconds: number
 }
@@ -72,7 +89,7 @@ export interface GameSettings {
 export const DEFAULT_SETTINGS: GameSettings = {
   handSize: 5,
   targetScore: 100,
-  stackPicks: true,
+  pickDefence: 'stack',
   turnSeconds: 30,
 }
 
@@ -80,6 +97,7 @@ export const SETTING_LIMITS = {
   handSize: { min: 3, max: 8 },
   targetScores: [0, 50, 100, 150, 200],
   turnSeconds: [0, 15, 30, 45, 60],
+  pickDefences: PICK_DEFENCES,
 }
 
 export function sanitizeSettings(input: Partial<GameSettings>, base: GameSettings = DEFAULT_SETTINGS): GameSettings {
@@ -90,7 +108,9 @@ export function sanitizeSettings(input: Partial<GameSettings>, base: GameSetting
   if (typeof input.targetScore === 'number' && SETTING_LIMITS.targetScores.includes(input.targetScore)) {
     next.targetScore = input.targetScore
   }
-  if (typeof input.stackPicks === 'boolean') next.stackPicks = input.stackPicks
+  if (typeof input.pickDefence === 'string' && PICK_DEFENCES.includes(input.pickDefence)) {
+    next.pickDefence = input.pickDefence
+  }
   if (typeof input.turnSeconds === 'number' && SETTING_LIMITS.turnSeconds.includes(input.turnSeconds)) {
     next.turnSeconds = input.turnSeconds
   }
@@ -210,12 +230,12 @@ export interface PlayContext {
   topCard: Card | null
   requestedShape: Suit | null
   pendingPick: PendingPick | null
-  stackPicks: boolean
+  pickDefence: PickDefence
 }
 
 export function canPlayCard(card: Card, ctx: PlayContext): boolean {
   if (ctx.pendingPick) {
-    return ctx.stackPicks && card.shape !== 'whot' && card.number === ctx.pendingPick.number
+    return ctx.pickDefence !== 'none' && card.shape !== 'whot' && card.number === ctx.pendingPick.number
   }
   if (card.shape === 'whot') return true
   if (ctx.requestedShape) return card.shape === ctx.requestedShape

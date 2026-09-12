@@ -93,10 +93,10 @@ function Table({ view }: { view: GameView }) {
       topCard: pile[pile.length - 1] ?? null,
       requestedShape: view.requestedShape,
       pendingPick: view.pendingPick,
-      stackPicks: view.settings.stackPicks,
+      pickDefence: view.settings.pickDefence,
     }
     return new Set(hand.filter((c) => canPlayCard(c, ctx)).map((c) => c.id))
-  }, [interactive, hand, pile, view.requestedShape, view.pendingPick, view.settings.stackPicks])
+  }, [interactive, hand, pile, view.requestedShape, view.pendingPick, view.settings.pickDefence])
 
   const countdown = useCountdown(view.deadline, `${view.phase}-${view.turnId}`)
   // The hand gets a fixed slice of the screen, and cards are sized to fit inside it.

@@ -179,7 +179,7 @@ export function playContext(state: GameState): PlayContext {
     topCard: getTopCard(state),
     requestedShape: state.requestedShape,
     pendingPick: state.pendingPick,
-    stackPicks: state.settings.stackPicks,
+    pickDefence: state.settings.pickDefence,
   }
 }
 
@@ -277,9 +277,9 @@ function playCard(
   if (!canPlayCard(card, playContext(s))) {
     if (s.pendingPick) {
       return fail(
-        s.settings.stackPicks
-          ? `Defend with a ${s.pendingPick.number} or go to market for ${s.pendingPick.amount}`
-          : `Go to market for ${s.pendingPick.amount}`,
+        s.settings.pickDefence === 'none'
+          ? `Go to market for ${s.pendingPick.amount}`
+          : `Defend with a ${s.pendingPick.number} or go to market for ${s.pendingPick.amount}`,
       )
     }
     if (s.requestedShape) return fail(`Play a ${SHAPE_NAMES[s.requestedShape]} or a Whot`)
@@ -310,7 +310,9 @@ function playCard(
     if (finished) endRound(s, 'checkup', playerIndex, events)
     else advanceTurn(s, 2)
   } else if (card.number === PICK_TWO || card.number === PICK_THREE) {
-    const amount = (s.pendingPick?.amount ?? 0) + (card.number === PICK_TWO ? 2 : 3)
+    const add = card.number === PICK_TWO ? 2 : 3
+    // Stacking grows the running total; passing it on sends the same penalty along.
+    const amount = s.settings.pickDefence === 'stack' ? (s.pendingPick?.amount ?? 0) + add : add
     const target = s.players[nextActiveIndex(s.players, playerIndex)]
     events.push({ type: 'pick', playerId: player.id, targetId: target.id, amount })
     if (finished) {
