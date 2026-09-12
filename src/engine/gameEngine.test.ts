@@ -13,7 +13,7 @@ import {
   toView,
 } from './gameEngine'
 import { chooseBotMove } from './bot'
-import { Card, DEFAULT_SETTINGS, GameSettings, GameState, Shape, Suit, isSpecial } from '../types/game'
+import { Card, DEFAULT_SETTINGS, GameSettings, GameState, PickDefence, Shape, Suit, isSpecial } from '../types/game'
 
 const card = (shape: Shape, number: number, id = `${shape}-${number}`): Card => ({ id, shape, number })
 
@@ -130,7 +130,7 @@ describe('playing cards', () => {
 })
 
 describe('pick two and pick three', () => {
-  const pickState = (stackPicks: boolean) =>
+  const pickState = (pickDefence: PickDefence) =>
     scenario({
       hands: [
         [card('circle', 2), card('circle', 3)],
@@ -138,11 +138,11 @@ describe('pick two and pick three', () => {
         [card('cross', 7), card('cross', 10)],
       ],
       top: card('circle', 4),
-      settings: { stackPicks },
+      settings: { pickDefence },
     })
 
   it('forces the next player to draw and clears the pick', () => {
-    let state = act(pickState(false), 'p0', { type: 'play', cardId: 'circle-2' }).state
+    let state = act(pickState('none'), 'p0', { type: 'play', cardId: 'circle-2' }).state
     expect(state.pendingPick).toEqual({ amount: 2, number: 2 })
     expect(state.turnIndex).toBe(1)
     expect(legalCards(state, 'p1')).toEqual([])
@@ -154,14 +154,40 @@ describe('pick two and pick three', () => {
     expect(events).toContainEqual({ type: 'drew', playerId: 'p1', count: 2, reason: 'pick' })
   })
 
-  it('stacks when defending is allowed', () => {
-    let state = act(pickState(true), 'p0', { type: 'play', cardId: 'circle-2' }).state
+  it('stacks the total when the table plays it that way', () => {
+    let state = act(pickState('stack'), 'p0', { type: 'play', cardId: 'circle-2' }).state
     expect(legalCards(state, 'p1').map((c) => c.id)).toEqual(['star-2'])
     state = act(state, 'p1', { type: 'play', cardId: 'star-2' }).state
     expect(state.pendingPick).toEqual({ amount: 4, number: 2 })
     expect(state.turnIndex).toBe(2)
     state = act(state, 'p2', { type: 'draw' }).state
     expect(state.players[2].hand).toHaveLength(6)
+  })
+
+  it('passes the same penalty on without growing it', () => {
+    let state = act(pickState('pass'), 'p0', { type: 'play', cardId: 'circle-2' }).state
+    expect(state.pendingPick).toEqual({ amount: 2, number: 2 })
+    state = act(state, 'p1', { type: 'play', cardId: 'star-2' }).state
+    expect(state.pendingPick).toEqual({ amount: 2, number: 2 })
+    state = act(state, 'p2', { type: 'draw' }).state
+    expect(state.players[2].hand).toHaveLength(4)
+  })
+
+  it('a Pick Three answered with a 5 doubles only when stacking', () => {
+    const hands = [[card('circle', 5), card('circle', 3)], [card('star', 5), card('cross', 7)], [card('cross', 10)]]
+    const stacked = act(
+      scenario({ hands, top: card('circle', 4), settings: { pickDefence: 'stack' } }),
+      'p0',
+      { type: 'play', cardId: 'circle-5' },
+    ).state
+    expect(act(stacked, 'p1', { type: 'play', cardId: 'star-5' }).state.pendingPick?.amount).toBe(6)
+
+    const passed = act(
+      scenario({ hands, top: card('circle', 4), settings: { pickDefence: 'pass' } }),
+      'p0',
+      { type: 'play', cardId: 'circle-5' },
+    ).state
+    expect(act(passed, 'p1', { type: 'play', cardId: 'star-5' }).state.pendingPick?.amount).toBe(3)
   })
 
   it('a finishing pick card still lands before the count', () => {
@@ -309,7 +335,7 @@ describe('bot simulation', () => {
           isBot: true,
           botLevel: levels[(seed + i) % 3],
         })),
-        { ...DEFAULT_SETTINGS, stackPicks: seed % 2 === 0, targetScore: 50 },
+        { ...DEFAULT_SETTINGS, pickDefence: (['stack', 'pass', 'none'] as const)[seed % 3], targetScore: 50 },
         rng,
       )
       let steps = 0

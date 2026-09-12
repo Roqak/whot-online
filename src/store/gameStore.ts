@@ -4,7 +4,16 @@ import type { BotLevel, GameEvent, GameSettings, GameView, Suit } from '../types
 import { AVATARS } from '../lib/avatars'
 import { playSound, setSoundEnabled } from '../lib/sound'
 import { ConnectionStatus, GameConnection, socketUrl } from '../net/connection'
+import { LocalTable } from '../net/localTable'
 import { ClientMessage, LobbyView, Reaction, ServerMessage, normalizeRoomCode } from '../net/protocol'
+
+/**
+ * The portal build has no server: the game runs in the browser instead.
+ * `?solo=1` turns it on in a normal build for testing.
+ */
+const LOCAL_ONLY =
+  import.meta.env.VITE_LOCAL_ONLY === '1' ||
+  (typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('solo'))
 
 export interface Profile {
   name: string
@@ -23,10 +32,12 @@ export interface EventBatch {
   view: GameView
 }
 
-export interface ReactionBubble {
+export interface Cheer {
   key: number
-  playerId: string
+  from: string
   emoji: Reaction
+  targetId: string | null
+  spectator: boolean
 }
 
 export type HandSort = 'shape' | 'number' | 'none'
@@ -35,21 +46,26 @@ interface StoreState {
   status: ConnectionStatus
   profile: Profile
   session: Session | null
+  /** Room code being watched without a seat. */
+  watching: string | null
   lobby: LobbyView | null
   game: GameView | null
   lastBatch: EventBatch | null
-  reactions: ReactionBubble[]
+  cheers: Cheer[]
   /** Card sent to the server but not yet confirmed; shown as already played. */
   pendingCardId: string | null
-  busy: 'create' | 'join' | 'quick' | null
+  busy: 'create' | 'join' | 'quick' | 'watch' | null
   formError: string | null
   inviteCode: string | null
   soundOn: boolean
   handSort: HandSort
+  /** True when there is no server: solo against bots, for portal builds. */
+  isLocal: boolean
 
   setProfile: (profile: Partial<Profile>) => void
   createRoom: (opts?: { quickPlay?: boolean }) => void
   joinRoom: (code: string) => void
+  watchRoom: (code: string) => void
   leaveRoom: () => void
   setReady: (ready: boolean) => void
   addBot: (level: BotLevel) => void
@@ -62,7 +78,7 @@ interface StoreState {
   catchPlayer: (targetId: string) => void
   nextRound: () => void
   backToLobby: () => void
-  react: (emoji: Reaction) => void
+  cheer: (emoji: Reaction, targetId?: string) => void
   toggleSound: () => void
   cycleHandSort: () => void
   clearFormError: () => void
@@ -91,33 +107,45 @@ const local = typeof window !== 'undefined' ? window.localStorage : undefined
 // Per tab, so two tabs can sit at the same table.
 const tab = typeof window !== 'undefined' ? window.sessionStorage : undefined
 
-function inviteFromUrl(): string | null {
+function codeFromPath(prefix: 'r' | 'w'): string | null {
   if (typeof window === 'undefined') return null
-  const match = window.location.pathname.match(/^\/r\/([A-Za-z0-9]{4,8})\/?$/)
-  const code = match?.[1] ?? new URLSearchParams(window.location.search).get('room')
+  const match = window.location.pathname.match(new RegExp(`^/${prefix}/([A-Za-z0-9]{4,8})/?$`))
+  const code = match?.[1] ?? (prefix === 'r' ? new URLSearchParams(window.location.search).get('room') : null)
   return code ? normalizeRoomCode(code) : null
 }
 
 function setUrl(path: string) {
+  // A portal serves the game from an iframe: leave the address bar alone.
+  if (LOCAL_ONLY) return
   if (typeof window !== 'undefined' && window.location.pathname !== path) {
     window.history.replaceState(null, '', path)
   }
 }
 
 let connection: GameConnection | null = null
+let localTable: LocalTable | null = null
 let quickPlayPending = false
 let batchSeq = 0
-let reactionSeq = 0
+let cheerSeq = 0
 
 export const useGameStore = create<StoreState>((set, get) => {
   const send = (msg: ClientMessage) => {
+    if (LOCAL_ONLY) {
+      if (!localTable) {
+        localTable = new LocalTable(handleMessage)
+        set({ status: 'open' })
+      }
+      localTable.handle(msg)
+      return
+    }
     if (!connection) {
       connection = new GameConnection(socketUrl(), {
         onMessage: handleMessage,
         onStatus: (status) => set({ status }),
         onOpen: () => {
-          const { session } = get()
-          if (session) connection!.send({ t: 'resume', code: session.code, sessionId: session.sessionId })
+          const { session, watching, profile } = get()
+          if (watching) connection!.send({ t: 'watch', code: watching, name: profile.name || 'Guest' })
+          else if (session) connection!.send({ t: 'resume', code: session.code, sessionId: session.sessionId })
         },
       })
     }
@@ -126,7 +154,17 @@ export const useGameStore = create<StoreState>((set, get) => {
 
   const clearRoom = () => {
     storage.set(tab, 'whot:session', null)
-    set({ session: null, lobby: null, game: null, lastBatch: null, pendingCardId: null, busy: null })
+    storage.set(tab, 'whot:watching', null)
+    set({
+      session: null,
+      watching: null,
+      lobby: null,
+      game: null,
+      lastBatch: null,
+      pendingCardId: null,
+      busy: null,
+      cheers: [],
+    })
     setUrl('/')
   }
 
@@ -135,7 +173,8 @@ export const useGameStore = create<StoreState>((set, get) => {
       case 'welcome': {
         const session = { code: msg.code, playerId: msg.playerId, sessionId: msg.sessionId }
         storage.set(tab, 'whot:session', session)
-        set({ session, busy: null, formError: null, inviteCode: null })
+        storage.set(tab, 'whot:watching', null)
+        set({ session, watching: null, busy: null, formError: null, inviteCode: null })
         setUrl(`/r/${msg.code}`)
         if (quickPlayPending) {
           quickPlayPending = false
@@ -145,6 +184,12 @@ export const useGameStore = create<StoreState>((set, get) => {
         }
         break
       }
+      case 'watching':
+        storage.set(tab, 'whot:watching', msg.code)
+        storage.set(tab, 'whot:session', null)
+        set({ watching: msg.code, session: null, busy: null, formError: null })
+        setUrl(`/w/${msg.code}`)
+        break
       case 'lobby':
         set((s) => ({
           lobby: msg.lobby,
@@ -165,25 +210,31 @@ export const useGameStore = create<StoreState>((set, get) => {
         if (msg.reason === 'expired') toast('You were away too long and lost your seat')
         break
       case 'error':
-        if (msg.code === 'session_expired') {
+        if (msg.code === 'session_expired' || (msg.code === 'room_not_found' && get().watching)) {
           const hadRoom = !!get().lobby
           clearRoom()
-          if (hadRoom) toast('That game has ended')
+          if (hadRoom) toast(msg.code === 'room_not_found' ? 'That table closed' : 'That game has ended')
           break
         }
         if (get().busy) {
           quickPlayPending = false
-          set({ busy: null, formError: msg.message })
+          set({ busy: null, formError: msg.message, watching: null })
           break
         }
         set({ pendingCardId: null })
         playSound('error')
         toast.error(msg.message, { id: 'server-error' })
         break
-      case 'reaction': {
-        const bubble = { key: ++reactionSeq, playerId: msg.playerId, emoji: msg.emoji }
-        set((s) => ({ reactions: [...s.reactions.slice(-8), bubble] }))
-        setTimeout(() => set((s) => ({ reactions: s.reactions.filter((r) => r.key !== bubble.key) })), 2600)
+      case 'cheer': {
+        const cheer: Cheer = {
+          key: ++cheerSeq,
+          from: msg.from,
+          emoji: msg.emoji,
+          targetId: msg.targetId,
+          spectator: msg.spectator,
+        }
+        set((s) => ({ cheers: [...s.cheers.slice(-8), cheer] }))
+        setTimeout(() => set((s) => ({ cheers: s.cheers.filter((c) => c.key !== cheer.key) })), 2600)
         break
       }
       case 'pong':
@@ -191,49 +242,62 @@ export const useGameStore = create<StoreState>((set, get) => {
     }
   }
 
-  const session = storage.get<Session | null>(tab, 'whot:session', null)
+  const session = LOCAL_ONLY ? null : storage.get<Session | null>(tab, 'whot:session', null)
+  const watchCode = LOCAL_ONLY ? null : (codeFromPath('w') ?? storage.get<string | null>(tab, 'whot:watching', null))
   const soundOn = storage.get(local, 'whot:sound', true)
   setSoundEnabled(soundOn)
-  if (session) queueMicrotask(() => send({ t: 'ping' }))
 
   const randomAvatar = AVATARS[Math.floor(Math.random() * AVATARS.length)].id
+  const profile = storage.get(local, 'whot:profile', { name: '', avatar: randomAvatar })
+
+  if (watchCode) {
+    queueMicrotask(() => send({ t: 'watch', code: watchCode, name: profile.name || 'Guest' }))
+  } else if (session) {
+    queueMicrotask(() => send({ t: 'ping' }))
+  }
 
   return {
     status: 'idle',
-    profile: storage.get(local, 'whot:profile', { name: '', avatar: randomAvatar }),
+    profile,
     session,
+    watching: watchCode,
     lobby: null,
     game: null,
     lastBatch: null,
-    reactions: [],
+    cheers: [],
     pendingCardId: null,
-    busy: null,
+    busy: watchCode ? 'watch' : null,
     formError: null,
-    inviteCode: inviteFromUrl(),
+    inviteCode: codeFromPath('r'),
     soundOn,
     handSort: storage.get<HandSort>(local, 'whot:sort', 'shape'),
+    isLocal: LOCAL_ONLY,
 
     setProfile: (patch) => {
-      const profile = { ...get().profile, ...patch }
-      storage.set(local, 'whot:profile', profile)
-      set({ profile, formError: null })
+      const next = { ...get().profile, ...patch }
+      storage.set(local, 'whot:profile', next)
+      set({ profile: next, formError: null })
     },
 
     createRoom: (opts) => {
-      const { profile } = get()
       quickPlayPending = !!opts?.quickPlay
       set({ busy: opts?.quickPlay ? 'quick' : 'create', formError: null })
-      send({ t: 'create', name: profile.name, avatar: profile.avatar })
+      send({ t: 'create', name: get().profile.name, avatar: get().profile.avatar })
     },
 
     joinRoom: (code) => {
-      const { profile } = get()
       set({ busy: 'join', formError: null })
-      send({ t: 'join', code: normalizeRoomCode(code), name: profile.name, avatar: profile.avatar })
+      send({ t: 'join', code: normalizeRoomCode(code), name: get().profile.name, avatar: get().profile.avatar })
+    },
+
+    watchRoom: (code) => {
+      const clean = normalizeRoomCode(code)
+      set({ busy: 'watch', formError: null, watching: clean })
+      send({ t: 'watch', code: clean, name: get().profile.name || 'Guest' })
     },
 
     leaveRoom: () => {
-      if (get().session) send({ t: 'leave' })
+      if (get().session || get().watching) send({ t: 'leave' })
       clearRoom()
     },
 
@@ -253,13 +317,13 @@ export const useGameStore = create<StoreState>((set, get) => {
     catchPlayer: (targetId) => send({ t: 'action', action: { type: 'catch', targetId } }),
     nextRound: () => send({ t: 'nextRound' }),
     backToLobby: () => send({ t: 'backToLobby' }),
-    react: (emoji) => send({ t: 'react', emoji }),
+    cheer: (emoji, targetId) => send({ t: 'react', emoji, targetId }),
 
     toggleSound: () => {
-      const soundOn = !get().soundOn
-      setSoundEnabled(soundOn)
-      storage.set(local, 'whot:sound', soundOn)
-      set({ soundOn })
+      const next = !get().soundOn
+      setSoundEnabled(next)
+      storage.set(local, 'whot:sound', next)
+      set({ soundOn: next })
     },
 
     cycleHandSort: () => {

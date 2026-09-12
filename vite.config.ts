@@ -17,6 +17,8 @@ function whotGameServer(): Plugin {
 }
 
 export default defineConfig({
+  // Portals serve the game from a folder they choose, so assets must be relative.
+  base: process.env.VITE_LOCAL_ONLY === '1' ? './' : '/',
   plugins: [react(), whotGameServer()],
   resolve: {
     alias: { '@': path.resolve(__dirname, './src') },

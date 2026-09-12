@@ -4,6 +4,7 @@ import { Toaster } from 'sonner'
 import GameTable from './components/GameTable'
 import LandingPage from './components/LandingPage'
 import Lobby from './components/Lobby'
+import WatchScreen from './components/watch/WatchScreen'
 import { ConnectionBanner } from './components/ConnectionBanner'
 import { useGameStore } from './store/gameStore'
 import { unlockAudio } from './lib/sound'
@@ -13,6 +14,7 @@ export default function App() {
   const lobby = useGameStore((s) => s.lobby)
   const status = useGameStore((s) => s.status)
   const session = useGameStore((s) => s.session)
+  const watching = useGameStore((s) => s.watching)
 
   useEffect(() => {
     const unlock = () => unlockAudio()
@@ -24,7 +26,7 @@ export default function App() {
     }
   }, [])
 
-  const screen = game ? 'game' : lobby ? 'lobby' : 'landing'
+  const screen = watching ? 'watch' : game ? 'game' : lobby ? 'lobby' : 'landing'
 
   return (
     <MotionConfig reducedMotion="user">
@@ -38,11 +40,19 @@ export default function App() {
             transition={{ duration: 0.2 }}
             className="h-full w-full"
           >
-            {screen === 'game' ? <GameTable /> : screen === 'lobby' ? <Lobby /> : <LandingPage />}
+            {screen === 'watch' ? (
+              <WatchScreen />
+            ) : screen === 'game' ? (
+              <GameTable />
+            ) : screen === 'lobby' ? (
+              <Lobby />
+            ) : (
+              <LandingPage />
+            )}
           </motion.main>
         </AnimatePresence>
 
-        {session && <ConnectionBanner status={status} />}
+        {(session || watching) && <ConnectionBanner status={status} />}
 
         <Toaster
           position="top-center"

@@ -21,6 +21,7 @@ export default function LandingPage() {
   const busy = useGameStore((s) => s.busy)
   const formError = useGameStore((s) => s.formError)
   const inviteCode = useGameStore((s) => s.inviteCode)
+  const isLocal = useGameStore((s) => s.isLocal)
 
   const [code, setCode] = useState(inviteCode ?? '')
   const [showJoin, setShowJoin] = useState(!!inviteCode)
@@ -116,6 +117,20 @@ export default function LandingPage() {
               Back
             </button>
           </div>
+        ) : isLocal ? (
+          <>
+            <button
+              className="btn-primary w-full py-4 text-base"
+              disabled={!nameOk || busy !== null}
+              onClick={() => createRoom({ quickPlay: true })}
+            >
+              {busy === 'quick' ? <Loader2 size={18} className="animate-spin" /> : <Play size={18} />}
+              Play now
+            </button>
+            <button className="btn-ghost w-full" disabled={!nameOk || busy !== null} onClick={() => createRoom()}>
+              <Bot size={17} /> Set up the table
+            </button>
+          </>
         ) : (
           <>
             <button
@@ -144,7 +159,9 @@ export default function LandingPage() {
         {!nameOk && <p className="text-center text-xs text-fg-faint">Add a name to get going</p>}
       </div>
 
-      <p className="text-center text-[11px] text-fg-faint">No signup. 2 to 6 players. Share a link and deal.</p>
+      <p className="text-center text-[11px] text-fg-faint">
+        {isLocal ? 'Play Whot against the house. Your table, your rules.' : 'No signup. 2 to 6 players. Share a link and deal.'}
+      </p>
     </div>
   )
 }

@@ -28,7 +28,8 @@ export function PlayerHand({ cards, playableIds, selectedId, shakeId, interactiv
   }, [cards.length, focusIndex])
 
   const count = cards.length
-  const spacing = count > 1 ? Math.min(cardWidth * 0.66, Math.max(18, (width - cardWidth - 8) / (count - 1))) : 0
+  // Leave room for the tilt on the outer cards, and let a big hand overlap rather than run off the edge.
+  const spacing = count > 1 ? Math.min(cardWidth * 0.66, Math.max(10, (width - cardWidth - 24) / (count - 1))) : 0
   const startX = (width - (cardWidth + spacing * (count - 1))) / 2
 
   const move = (from: number, delta: number) => {

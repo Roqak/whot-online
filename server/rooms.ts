@@ -45,10 +45,17 @@ interface Member {
 
 type Timer = ReturnType<typeof setTimeout>
 
+interface Watcher {
+  id: string
+  name: string
+}
+
 interface Room {
   code: string
   hostId: string
   members: Member[]
+  /** Spectators: they receive the redacted view and can cheer, nothing else. */
+  watchers: Map<Client, Watcher>
   settings: GameSettings
   game: GameState | null
   deadline: number | null
@@ -77,6 +84,7 @@ const REACTION_COOLDOWN_MS = 800
 export class RoomManager {
   private rooms = new Map<string, Room>()
   private bindings = new Map<Client, { code: string; memberId: string }>()
+  private watching = new Map<Client, string>()
   private rng: Rng
   private now: () => number
   private opts: Required<Omit<RoomManagerOptions, 'rng' | 'now'>>
@@ -112,6 +120,25 @@ export class RoomManager {
         return this.join(client, msg.code, msg.name, msg.avatar)
       case 'resume':
         return this.resume(client, msg.code, msg.sessionId)
+      case 'watch':
+        return this.watch(client, msg.code, msg.name)
+    }
+
+    const watched = this.watchedRoom(client)
+    if (watched) {
+      const { room, watcher } = watched
+      if (msg.t === 'react') {
+        return this.cheer(room, {
+          key: watcher.id,
+          name: watcher.name,
+          playerId: null,
+          emoji: msg.emoji,
+          targetId: msg.targetId,
+          spectator: true,
+        })
+      }
+      if (msg.t === 'leave') return this.stopWatching(client)
+      return this.error(client, 'forbidden', 'You are watching this table, not playing')
     }
 
     const ctx = this.context(client)
@@ -161,11 +188,19 @@ export class RoomManager {
         for (const m of room.members) m.ready = m.isBot
         return this.broadcastLobby(room)
       case 'react':
-        return this.react(room, member, msg.emoji)
+        return this.cheer(room, {
+          key: member.id,
+          name: member.name,
+          playerId: member.id,
+          emoji: msg.emoji,
+          targetId: msg.targetId,
+          spectator: false,
+        })
     }
   }
 
   handleDisconnect(client: Client) {
+    this.stopWatching(client)
     const ctx = this.context(client)
     this.bindings.delete(client)
     if (!ctx) return
@@ -197,6 +232,48 @@ export class RoomManager {
     for (const room of this.rooms.values()) this.clearTimers(room)
     this.rooms.clear()
     this.bindings.clear()
+    this.watching.clear()
+  }
+
+  // Spectators
+
+  private watch(client: Client, rawCode: string, rawName: string) {
+    const room = this.rooms.get(normalizeRoomCode(rawCode))
+    if (!room) return this.error(client, 'room_not_found', 'No table with that code')
+    this.detach(client)
+    this.stopWatching(client)
+
+    room.watchers.set(client, { id: `w_${randomBytes(5).toString('hex')}`, name: cleanName(rawName) || 'Guest' })
+    this.watching.set(client, room.code)
+    client.send({ t: 'watching', code: room.code })
+    client.send({ t: 'lobby', lobby: this.lobbyView(room) })
+    if (room.game) client.send({ t: 'game', view: this.spectatorView(room), events: [] })
+    this.broadcastLobby(room)
+  }
+
+  private stopWatching(client: Client) {
+    const code = this.watching.get(client)
+    if (!code) return
+    this.watching.delete(client)
+    const room = this.rooms.get(code)
+    if (!room) return
+    room.watchers.delete(client)
+    this.broadcastLobby(room)
+  }
+
+  private watchedRoom(client: Client) {
+    const code = this.watching.get(client)
+    const room = code ? this.rooms.get(code) : undefined
+    const watcher = room?.watchers.get(client)
+    return room && watcher ? { room, watcher } : null
+  }
+
+  /** The view everyone without a seat gets: counts only, never a hand. */
+  private spectatorView(room: Room) {
+    return toView(room.game!, '', {
+      isConnected: (id) => !!room.members.find((m) => m.id === id)?.client,
+      deadline: room.deadline,
+    })
   }
 
   // Lobby
@@ -214,6 +291,7 @@ export class RoomManager {
       members: [host],
       settings: { ...DEFAULT_SETTINGS },
       game: null,
+      watchers: new Map(),
       deadline: null,
       scheduledTurnId: null,
       turnTimer: null,
@@ -289,6 +367,11 @@ export class RoomManager {
 
     if (!room.members.some((m) => !m.isBot)) {
       this.clearTimers(room)
+      for (const watcher of room.watchers.keys()) {
+        watcher.send({ t: 'error', code: 'room_not_found', message: 'The table closed' })
+        this.watching.delete(watcher)
+      }
+      room.watchers.clear()
       this.rooms.delete(room.code)
       return
     }
@@ -302,11 +385,23 @@ export class RoomManager {
     this.broadcastLobby(room)
   }
 
-  private react(room: Room, member: Member, emoji: Reaction) {
+  private cheer(
+    room: Room,
+    opts: { key: string; name: string; playerId: string | null; emoji: Reaction; targetId?: string; spectator: boolean },
+  ) {
     const now = this.now()
-    if (now - (room.lastReaction.get(member.id) ?? 0) < REACTION_COOLDOWN_MS) return
-    room.lastReaction.set(member.id, now)
-    this.broadcast(room, { t: 'reaction', playerId: member.id, emoji })
+    if (now - (room.lastReaction.get(opts.key) ?? 0) < REACTION_COOLDOWN_MS) return
+    room.lastReaction.set(opts.key, now)
+    const known =
+      opts.targetId &&
+      (room.members.some((m) => m.id === opts.targetId) || room.game?.players.some((p) => p.id === opts.targetId))
+    this.broadcast(room, {
+      t: 'cheer',
+      from: opts.name,
+      emoji: opts.emoji,
+      targetId: known ? opts.targetId! : null,
+      spectator: opts.spectator,
+    })
   }
 
   // Game loop
@@ -449,6 +544,7 @@ export class RoomManager {
 
   private broadcast(room: Room, msg: ServerMessage) {
     for (const m of room.members) m.client?.send(msg)
+    for (const watcher of room.watchers.keys()) watcher.send(msg)
   }
 
   private broadcastLobby(room: Room) {
@@ -462,6 +558,10 @@ export class RoomManager {
     for (const m of room.members) {
       m.client?.send({ t: 'game', view: toView(game, m.id, { isConnected, deadline: room.deadline }), events })
     }
+    if (room.watchers.size > 0) {
+      const view = this.spectatorView(room)
+      for (const watcher of room.watchers.keys()) watcher.send({ t: 'game', view, events })
+    }
   }
 
   private lobbyView(room: Room): LobbyView {
@@ -470,6 +570,7 @@ export class RoomManager {
       hostId: room.hostId,
       settings: room.settings,
       inGame: !!room.game,
+      watchers: room.watchers.size,
       members: room.members.map((m) => ({
         id: m.id,
         name: m.name,

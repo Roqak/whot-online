@@ -84,7 +84,13 @@ export function RulesSheet({ open, onClose, settings }: { open: boolean; onClose
             <h3 className="mt-5 text-xs uppercase tracking-[0.18em] text-fg-faint">This table</h3>
             <ul className="mt-2 space-y-1 text-sm text-fg-muted">
               <li>{settings.handSize} cards each</li>
-              <li>{settings.stackPicks ? 'Picks can be defended and stacked' : 'Picks cannot be defended'}</li>
+              <li>
+                {settings.pickDefence === 'stack'
+                  ? 'Picks can be answered, and the total grows'
+                  : settings.pickDefence === 'pass'
+                    ? 'Picks can be answered, passing the same penalty on'
+                    : 'Picks cannot be answered'}
+              </li>
               <li>{settings.turnSeconds > 0 ? `${settings.turnSeconds}s per turn` : 'No turn timer'}</li>
               <li>
                 {settings.targetScore > 0

@@ -23,12 +23,15 @@ export interface LobbyView {
   members: LobbyMember[]
   settings: GameSettings
   inGame: boolean
+  /** People watching without a seat. */
+  watchers: number
 }
 
 export type ClientMessage =
   | { t: 'create'; name: string; avatar: string }
   | { t: 'join'; code: string; name: string; avatar: string }
   | { t: 'resume'; code: string; sessionId: string }
+  | { t: 'watch'; code: string; name: string }
   | { t: 'leave' }
   | { t: 'ready'; ready: boolean }
   | { t: 'addBot'; level: BotLevel }
@@ -38,18 +41,26 @@ export type ClientMessage =
   | { t: 'action'; action: GameAction }
   | { t: 'nextRound' }
   | { t: 'backToLobby' }
-  | { t: 'react'; emoji: Reaction }
+  | { t: 'react'; emoji: Reaction; targetId?: string }
   | { t: 'ping' }
 
-export type ErrorCode = 'room_not_found' | 'room_full' | 'in_progress' | 'session_expired' | 'invalid' | 'forbidden' | 'rejected'
+export type ErrorCode =
+  | 'room_not_found'
+  | 'room_full'
+  | 'in_progress'
+  | 'session_expired'
+  | 'invalid'
+  | 'forbidden'
+  | 'rejected'
 
 export type ServerMessage =
   | { t: 'welcome'; code: string; playerId: string; sessionId: string }
+  | { t: 'watching'; code: string }
   | { t: 'lobby'; lobby: LobbyView }
   | { t: 'game'; view: GameView; events: GameEvent[] }
   | { t: 'left'; reason: 'left' | 'kicked' | 'expired' }
   | { t: 'error'; code: ErrorCode; message: string }
-  | { t: 'reaction'; playerId: string; emoji: Reaction }
+  | { t: 'cheer'; from: string; emoji: Reaction; targetId: string | null; spectator: boolean }
   | { t: 'pong' }
 
 const BOT_LEVELS: BotLevel[] = ['easy', 'normal', 'hard']
@@ -85,7 +96,11 @@ export function parseClientMessage(raw: unknown): ClientMessage | null {
         ? { t: 'join', code: raw.code, name: raw.name, avatar: raw.avatar }
         : null
     case 'resume':
-      return isStr(raw.code, 12) && isStr(raw.sessionId) ? { t: 'resume', code: raw.code, sessionId: raw.sessionId } : null
+      return isStr(raw.code, 12) && isStr(raw.sessionId)
+        ? { t: 'resume', code: raw.code, sessionId: raw.sessionId }
+        : null
+    case 'watch':
+      return isStr(raw.code, 12) && isStr(raw.name) ? { t: 'watch', code: raw.code, name: raw.name } : null
     case 'ready':
       return typeof raw.ready === 'boolean' ? { t: 'ready', ready: raw.ready } : null
     case 'addBot':
@@ -99,7 +114,9 @@ export function parseClientMessage(raw: unknown): ClientMessage | null {
       return action ? { t: 'action', action } : null
     }
     case 'react':
-      return REACTIONS.includes(raw.emoji as Reaction) ? { t: 'react', emoji: raw.emoji as Reaction } : null
+      if (!REACTIONS.includes(raw.emoji as Reaction)) return null
+      if (raw.targetId !== undefined && !isStr(raw.targetId)) return null
+      return { t: 'react', emoji: raw.emoji as Reaction, targetId: raw.targetId as string | undefined }
     case 'leave':
     case 'start':
     case 'nextRound':
@@ -117,5 +134,16 @@ export function cleanName(name: string): string {
 }
 
 export function normalizeRoomCode(code: string): string {
-  return code.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, ROOM_CODE_LENGTH)
+  return code
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, '')
+    .slice(0, ROOM_CODE_LENGTH)
+}
+
+export function playUrl(code: string): string {
+  return `${window.location.origin}/r/${code}`
+}
+
+export function watchUrl(code: string): string {
+  return `${window.location.origin}/w/${code}`
 }
