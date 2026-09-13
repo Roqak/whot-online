@@ -1,8 +1,10 @@
+import { useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
-import { Trophy } from 'lucide-react'
+import { Trophy, Loader2 } from 'lucide-react'
 import type { GameView } from '../../types/game'
 import { Avatar } from '../Avatar'
 import { WhotCard } from '../cards/WhotCard'
+import { portalGameplayStop, portalHappyTime, requestMidroll } from '../../lib/portalSdk'
 
 interface RoundOverlayProps {
   view: GameView
@@ -14,12 +16,33 @@ interface RoundOverlayProps {
 }
 
 export function RoundOverlay({ view, isHost, secondsLeft, onNextRound, onBackToLobby, onLeave }: RoundOverlayProps) {
+  const [adWaiting, setAdWaiting] = useState(false)
   const result = view.lastRound
   const matchOver = view.phase === 'matchOver'
   const championId = view.matchWinnerId
   const name = (id: string) => view.players.find((p) => p.id === id)?.name ?? 'Someone'
   const winnerId = matchOver ? (championId ?? result?.winnerId) : result?.winnerId
   const iWon = winnerId === view.myId
+
+  useEffect(() => {
+    portalGameplayStop()
+    if (iWon) {
+      portalHappyTime()
+    }
+  }, [iWon])
+
+  const handleFinishAction = async (action: () => void) => {
+    if (adWaiting) return
+    if (matchOver) {
+      setAdWaiting(true)
+      try {
+        await requestMidroll()
+      } finally {
+        setAdWaiting(false)
+      }
+    }
+    action()
+  }
 
   return (
     <motion.div
@@ -99,11 +122,15 @@ export function RoundOverlay({ view, isHost, secondsLeft, onNextRound, onBackToL
         <div className="mt-5 flex gap-2">
           {matchOver ? (
             <>
-              <button className="btn-primary flex-1" onClick={isHost ? onBackToLobby : onLeave}>
-                {isHost ? 'Play again' : 'Leave table'}
+              <button
+                className="btn-primary flex-1"
+                disabled={adWaiting}
+                onClick={() => handleFinishAction(isHost ? onBackToLobby : onLeave)}
+              >
+                {adWaiting ? <Loader2 size={16} className="animate-spin" /> : isHost ? 'Play again' : 'Leave table'}
               </button>
               {isHost && (
-                <button className="btn-ghost" onClick={onLeave}>
+                <button className="btn-ghost" disabled={adWaiting} onClick={() => handleFinishAction(onLeave)}>
                   Leave
                 </button>
               )}

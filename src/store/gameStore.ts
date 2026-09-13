@@ -6,6 +6,7 @@ import { playSound, setSoundEnabled } from '../lib/sound'
 import { ConnectionStatus, GameConnection, socketUrl } from '../net/connection'
 import { LocalTable } from '../net/localTable'
 import { ClientMessage, LobbyView, Reaction, ServerMessage, normalizeRoomCode } from '../net/protocol'
+import { initPortalSDK, portalGameplayStart, portalGameplayStop } from '../lib/portalSdk'
 
 /**
  * The portal build has no server: the game runs in the browser instead.
@@ -14,6 +15,10 @@ import { ClientMessage, LobbyView, Reaction, ServerMessage, normalizeRoomCode } 
 const LOCAL_ONLY =
   import.meta.env.VITE_LOCAL_ONLY === '1' ||
   (typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('solo'))
+
+if (LOCAL_ONLY) {
+  void initPortalSDK()
+}
 
 export interface Profile {
   name: string
@@ -153,6 +158,7 @@ export const useGameStore = create<StoreState>((set, get) => {
   }
 
   const clearRoom = () => {
+    portalGameplayStop()
     storage.set(tab, 'whot:session', null)
     storage.set(tab, 'whot:watching', null)
     set({
@@ -191,6 +197,7 @@ export const useGameStore = create<StoreState>((set, get) => {
         setUrl(`/w/${msg.code}`)
         break
       case 'lobby':
+        if (!msg.lobby.inGame) portalGameplayStop()
         set((s) => ({
           lobby: msg.lobby,
           game: msg.lobby.inGame ? s.game : null,
@@ -198,6 +205,7 @@ export const useGameStore = create<StoreState>((set, get) => {
         }))
         break
       case 'game':
+        portalGameplayStart()
         set({
           game: msg.view,
           pendingCardId: null,

@@ -22,6 +22,10 @@ export function setSoundEnabled(on: boolean) {
   enabled = on
 }
 
+export function isSoundEnabled(): boolean {
+  return enabled
+}
+
 function audio(): AudioContext | null {
   if (!enabled || typeof window === 'undefined') return null
   if (!ctx) {

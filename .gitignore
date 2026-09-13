@@ -6,9 +6,10 @@ node_modules
 # Build
 /dist
 /dist-server
-/dist-portal
+/dist-portal*
 /dist-ssr
 *.local
+*.zip
 
 # Editor
 .vscode/*

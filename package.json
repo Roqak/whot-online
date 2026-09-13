@@ -13,7 +13,8 @@
     "start": "node dist-server/index.js",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
-    "build:portal": "tsc --noEmit && VITE_LOCAL_ONLY=1 vite build --outDir dist-portal"
+    "build:portal": "tsc --noEmit && VITE_LOCAL_ONLY=1 vite build --outDir dist-portal",
+    "package:portal": "node scripts/package-portal.js"
   },
   "dependencies": {
     "@react-three/drei": "^9.122.0",
