@@ -5,6 +5,7 @@ import { toast } from 'sonner'
 import { useGameStore } from '../../store/gameStore'
 import { REACTIONS, watchUrl } from '../../net/protocol'
 import { describeEvent } from '../../lib/events'
+import { copyText } from '../../lib/share'
 import { Avatar } from '../Avatar'
 import { WhotCard } from '../cards/WhotCard'
 import type { CameraPreset } from './Table3D'
@@ -77,13 +78,10 @@ export default function WatchScreen() {
 
   const copyLink = async () => {
     if (!code) return
-    try {
-      await navigator.clipboard.writeText(watchUrl(code))
-      setCopied(true)
-      setTimeout(() => setCopied(false), 1800)
-    } catch {
-      toast('Copy failed. The link is in your address bar.')
-    }
+    const ok = await copyText(watchUrl(code))
+    setCopied(ok)
+    if (ok) setTimeout(() => setCopied(false), 1800)
+    else toast('Copy failed. The link is in your address bar.')
   }
 
   const sendCheer = (emoji: (typeof REACTIONS)[number]) => cheer(emoji, target ?? undefined)
