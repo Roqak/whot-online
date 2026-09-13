@@ -7,7 +7,6 @@ import type { Cheer } from '../../store/gameStore'
 import { cardTilt } from '../../lib/hand'
 import { avatarTexture, cardTexture, disposeCardTextures, emojiTexture, feltTexture, glowTexture, shapeTexture, suitColor } from './cardTexture'
 import type { Highlight } from './highlights'
-import { splashFor } from './highlights'
 
 export type CameraPreset = 'table' | 'top' | 'seat'
 export type DirectorShot = 'auto' | 'table' | 'top' | 'seat'
@@ -23,6 +22,8 @@ interface Table3DProps {
   reducedMotion: boolean
   /** One-shot spectacles derived from the latest event batch. */
   highlights: Highlight[]
+  /** Big centre callout, kept as DOM outside the canvas. */
+  splash: { text: string; tone: 'neutral' | 'good' | 'bad'; seq: number } | null
   /** Epoch ms of the current turn deadline, for the seat countdown arc. */
   deadline: number | null
   /** Called when the canvas never draws, so the caller can show the flat view instead. */
@@ -362,7 +363,7 @@ function CheerSprite({ emoji, origin }: { emoji: string; origin: [number, number
   )
 }
 
-/** Big centred callout ("PICK TWO!") that punches in and fades. */
+/** Big centred callout ("PICK TWO!") that punches in and fades. Rendered as DOM above the canvas. */
 function Splash({ text, tone, seq }: { text: string; tone: 'neutral' | 'good' | 'bad'; seq: number }) {
   const [gone, setGone] = useState(false)
   useEffect(() => {
@@ -373,7 +374,7 @@ function Splash({ text, tone, seq }: { text: string; tone: 'neutral' | 'good' | 
   if (gone) return null
   const color = tone === 'bad' ? EMBER : tone === 'good' ? MARIGOLD : INDIGO
   return (
-    <div className="pointer-events-none absolute inset-0 grid place-items-center" style={{ perspective: '600px' }}>
+    <div className="pointer-events-none absolute inset-0 z-10 grid place-items-center" style={{ perspective: '600px' }}>
       <span
         key={seq}
         className="font-display text-4xl font-extrabold uppercase tracking-wider drop-shadow-[0_4px_24px_rgba(0,0,0,0.6)] sm:text-6xl"
@@ -504,7 +505,6 @@ function Scene({ view, cheers, preset, spin, seatIndex, onSelectSeat, selectedSe
   const seated = view.players
   const count = Math.max(seated.length, 2)
   const latest = highlights[highlights.length - 1]
-  const [splash, setSplash] = useState<{ text: string; tone: 'neutral' | 'good' | 'bad'; seq: number } | null>(null)
   const [wave, setWave] = useState<{ at: [number, number, number]; tone: 'good' | 'bad' | 'neutral'; seq: number } | null>(null)
   const seq = useRef(0)
 
@@ -513,12 +513,10 @@ function Scene({ view, cheers, preset, spin, seatIndex, onSelectSeat, selectedSe
     return index >= 0 ? seatPosition(index, count) : null
   }, [seated, view.turnPlayerId, count])
 
-  // React to the newest highlight: splash text, shockwave, and seat flash.
+  // React to the newest highlight: shockwave and seat flash. Splash text lives in the DOM layer.
   useEffect(() => {
     if (!latest) return
     const id = ++seq.current
-    const text = splashFor(latest)
-    if (text) setSplash({ text, tone: latest.kind === 'caught' ? 'bad' : latest.kind === 'roundOver' || latest.kind === 'matchOver' || latest.kind === 'lastCard' ? 'good' : 'neutral', seq: id })
     if (latest.kind === 'special' || latest.kind === 'pick' || latest.kind === 'generalMarket') {
       const at = latest.playerId ? seatFromPlayer(seated, count, latest.playerId) : [0, 0, 0]
       setWave({ at: at as [number, number, number], tone: 'bad', seq: id })
@@ -593,7 +591,6 @@ function Scene({ view, cheers, preset, spin, seatIndex, onSelectSeat, selectedSe
         maxPolarAngle={1.38}
         target={[0, 0, 0]}
       />
-      {splash && <Splash key={splash.seq} text={splash.text} tone={splash.tone} seq={splash.seq} />}
     </>
   )
 }
@@ -660,17 +657,20 @@ export default function Table3D(props: Table3DProps) {
   }
 
   return (
-    <Canvas
-      dpr={[1, 1.75]}
-      resize={{ debounce: 0, scroll: false }}
-      camera={{ position: TABLE_VIEW, fov: 45 }}
-      gl={{ antialias: true, powerPreference: 'high-performance' }}
-      onCreated={({ gl }) => {
-        gl.domElement.addEventListener('webglcontextlost', () => setFailed(true))
-      }}
-    >
-      <SizeGuard onStall={props.onStall} />
-      <Scene {...props} />
-    </Canvas>
+    <div className="relative h-full w-full">
+      <Canvas
+        dpr={[1, 1.75]}
+        resize={{ debounce: 0, scroll: false }}
+        camera={{ position: TABLE_VIEW, fov: 45 }}
+        gl={{ antialias: true, powerPreference: 'high-performance' }}
+        onCreated={({ gl }) => {
+          gl.domElement.addEventListener('webglcontextlost', () => setFailed(true))
+        }}
+      >
+        <SizeGuard onStall={props.onStall} />
+        <Scene {...props} />
+      </Canvas>
+      {props.splash && <Splash key={props.splash.seq} text={props.splash.text} tone={props.splash.tone} seq={props.splash.seq} />}
+    </div>
   )
 }

@@ -9,10 +9,10 @@ import { REACTIONS, watchUrl } from '../../net/protocol'
 import { describeEvent } from '../../lib/events'
 import { copyText, shareOrCopy } from '../../lib/share'
 import { useCountdown } from '../../lib/hooks'
-import { playSound } from '../../lib/sound'
+import { playSound, setSoundEnabled } from '../../lib/sound'
 import { Avatar } from '../Avatar'
 import { WhotCard } from '../cards/WhotCard'
-import { fromEvents } from './highlights'
+import { fromEvents, splashFor, splashTone } from './highlights'
 import type { Highlight } from './highlights'
 import type { CameraPreset } from './Table3D'
 
@@ -154,12 +154,20 @@ export default function WatchScreen() {
   }, [showQr, code])
 
   const toggleMute = () => {
-    setMuted((m) => !m)
-    playSound('tap')
+    setMuted((m) => {
+      setSoundEnabled(m) // unmuting when m was true
+      if (!m) return true
+      // Play a tick on the way back up, after sound is re-enabled.
+      setTimeout(() => playSound('tap'), 0)
+      return false
+    })
   }
 
   const sendCheer = (emoji: (typeof REACTIONS)[number]) => {
-    if (muted) setMuted(false)
+    if (muted) {
+      setMuted(false)
+      setSoundEnabled(true)
+    }
     cheer(emoji, target ?? undefined)
   }
 
@@ -172,6 +180,13 @@ export default function WatchScreen() {
 
   const countdown = useCountdown(game?.deadline ?? null, game ? `${game.phase}-${game.turnId}` : 'idle')
   const winnerId = game?.phase === 'matchOver' ? game.matchWinnerId : game?.lastRound?.winnerId ?? null
+  // The centre callout derives from the latest one-shot highlight.
+  const latest = highlights[highlights.length - 1]
+  const splash = useMemo(() => {
+    if (!latest) return null
+    const text = splashFor(latest)
+    return text ? { text, tone: splashTone(latest), seq: latest.id } : null
+  }, [latest])
 
   // Presentation moment: the champion gets confetti, always.
   const celebrated = useRef<string | null>(null)
@@ -295,6 +310,7 @@ export default function WatchScreen() {
                       onSelectSeat={(id) => setTarget((current) => (current === id ? null : id))}
                       reducedMotion={reducedMotion || muted}
                       highlights={highlights}
+                      splash={splash}
                       deadline={game.deadline}
                       onStall={() => setSceneStalled(true)}
                     />
