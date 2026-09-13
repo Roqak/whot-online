@@ -141,3 +141,27 @@
     transition-duration: 0.01ms !important;
   }
 }
+
+/* Watch-mode callout: punches in big, eases out small. Lives outside Tailwind
+   because it is only used by the 3D spectator scene. */
+@keyframes watch-splash {
+  0% {
+    opacity: 0;
+    transform: scale(0.6) rotate(-3deg);
+  }
+  18% {
+    opacity: 1;
+    transform: scale(1.08) rotate(1deg);
+  }
+  30% {
+    transform: scale(1) rotate(0deg);
+  }
+  78% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.05);
+  }
+}
