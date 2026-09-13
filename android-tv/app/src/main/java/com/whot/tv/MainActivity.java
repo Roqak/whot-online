@@ -36,7 +36,7 @@ public class MainActivity extends Activity {
 
     private static final String PREFS = "whot_tv";
     private static final String KEY_SERVER = "server_url";
-    private static final String DEFAULT_SERVER = "http://192.168.18.17:5000";
+    private static final String DEFAULT_SERVER = "https://lastcard.fun";
     private static final String TAG = "WhotTV";
 
     private FrameLayout root;
