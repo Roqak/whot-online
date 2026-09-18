@@ -303,6 +303,17 @@ export const useGameStore = create<StoreState>((set, get) => {
 
     leaveRoom: () => {
       if (get().session || get().watching) send({ t: 'leave' })
+      // Android's WebView can stop painting the entire page once the 3D
+      // table's WebGL context is torn down on unmount — a GPU-compositor
+      // wedge, not a JS error, so nothing throws and nothing is left to
+      // recover from client-side. Only reachable inside the app
+      // (`window.Android` only exists there) and only when a game (so a
+      // <Canvas>) was actually mounted; a full reload sidesteps it since
+      // there's no game state left to preserve once we're leaving anyway.
+      if (typeof window !== 'undefined' && window.Android && get().game) {
+        window.location.reload()
+        return
+      }
       clearRoom()
     },
 
