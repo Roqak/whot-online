@@ -645,8 +645,33 @@ function SizeGuard({ onStall }: { onStall: () => void }) {
 
 export default function Table3D(props: Table3DProps) {
   const [failed, setFailed] = useState(false)
+  const [canvasKey, setCanvasKey] = useState(0)
+  const glRef = useRef<THREE.WebGLRenderer | null>(null)
+  const restoreWatchdog = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => () => disposeCardTextures(), [])
+
+  // Android's WebView tears down the GPU surface while the app is
+  // backgrounded. A `webglcontextrestored` event (when it fires) leaves
+  // Three's textures/programs pointing at a dead context, so recovery
+  // means a full remount, not an in-place fix. Some devices don't fire
+  // the loss/restore events at all and just go silently blank, so
+  // visibilitychange is a second, direct check for the same condition.
+  useEffect(() => {
+    const remount = () => {
+      if (restoreWatchdog.current) clearTimeout(restoreWatchdog.current)
+      restoreWatchdog.current = null
+      setCanvasKey((k) => k + 1)
+    }
+    const onVisible = () => {
+      if (document.visibilityState === 'visible' && glRef.current?.getContext().isContextLost()) remount()
+    }
+    document.addEventListener('visibilitychange', onVisible)
+    return () => {
+      document.removeEventListener('visibilitychange', onVisible)
+      if (restoreWatchdog.current) clearTimeout(restoreWatchdog.current)
+    }
+  }, [])
 
   if (failed) {
     return (
@@ -659,12 +684,18 @@ export default function Table3D(props: Table3DProps) {
   return (
     <div className="relative h-full w-full">
       <Canvas
+        key={canvasKey}
         dpr={[1, 1.75]}
         resize={{ debounce: 0, scroll: false }}
         camera={{ position: TABLE_VIEW, fov: 45 }}
         gl={{ antialias: true, powerPreference: 'high-performance' }}
         onCreated={({ gl }) => {
-          gl.domElement.addEventListener('webglcontextlost', () => setFailed(true))
+          glRef.current = gl
+          gl.domElement.addEventListener('webglcontextlost', (e) => {
+            e.preventDefault()
+            restoreWatchdog.current = setTimeout(() => setFailed(true), 4000)
+          })
+          gl.domElement.addEventListener('webglcontextrestored', () => setCanvasKey((k) => k + 1))
         }}
       >
         <SizeGuard onStall={props.onStall} />

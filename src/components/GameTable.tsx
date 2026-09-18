@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import confetti from 'canvas-confetti'
-import { ArrowDownUp, Check, Copy, Eye, HelpCircle, LogOut, Smile, Volume2, VolumeX } from 'lucide-react'
+import { ArrowDownUp, Check, Copy, Eye, HelpCircle, LogOut, Pause, Smile, Volume2, VolumeX } from 'lucide-react'
 import { toast } from 'sonner'
 import { Cheer, useGameStore } from '../store/gameStore'
 import { REACTIONS, playUrl, watchUrl } from '../net/protocol'
@@ -26,6 +26,7 @@ import { ShapeIcon } from './cards/shapes'
 import { Announcement, Announcer } from './game/Announcer'
 import { OpponentSeat } from './game/OpponentSeat'
 import { PlayerHand } from './game/PlayerHand'
+import { PauseOverlay } from './game/PauseOverlay'
 import { RoundOverlay } from './game/RoundOverlay'
 import { RulesSheet } from './game/RulesSheet'
 import { TableCenter } from './game/TableCenter'
@@ -57,6 +58,9 @@ function Table({ view }: { view: GameView }) {
   const cheer = useGameStore((s) => s.cheer)
   const cycleHandSort = useGameStore((s) => s.cycleHandSort)
   const toggleSound = useGameStore((s) => s.toggleSound)
+  const paused = useGameStore((s) => s.paused)
+  const pauseGame = useGameStore((s) => s.pauseGame)
+  const resumeGame = useGameStore((s) => s.resumeGame)
 
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [shapeFor, setShapeFor] = useState<string | null>(null)
@@ -302,6 +306,11 @@ function Table({ view }: { view: GameView }) {
               </span>
             )}
           </span>
+          {isLocal && view.phase === 'playing' && (
+            <button className="btn-icon" onClick={pauseGame} aria-label="Pause game">
+              <Pause size={17} />
+            </button>
+          )}
           <button className="btn-icon" onClick={toggleSound} aria-label={soundOn ? 'Mute sound' : 'Unmute sound'}>
             {soundOn ? <Volume2 size={17} /> : <VolumeX size={17} />}
           </button>
@@ -383,6 +392,8 @@ function Table({ view }: { view: GameView }) {
             />
           )}
         </AnimatePresence>
+
+        <AnimatePresence>{paused && <PauseOverlay onResume={resumeGame} onLeave={leaveRoom} />}</AnimatePresence>
       </div>
 
       <div className="z-10 shrink-0 px-3">

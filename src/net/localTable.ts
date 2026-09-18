@@ -58,6 +58,8 @@ export class LocalTable {
   private now: () => number
   private botDelayMs: [number, number]
   private roundBreakMs: number
+  private pausedAt: number | null = null
+  private pausedRemainingMs: number | null = null
 
   constructor(
     private emit: (msg: ServerMessage) => void,
@@ -129,6 +131,41 @@ export class LocalTable {
 
   dispose() {
     this.clearTimers()
+  }
+
+  /** Solo mode only: freezes bot moves and turn/round countdowns. */
+  pause() {
+    if (this.pausedAt !== null || !this.game) return
+    this.pausedAt = this.now()
+    this.pausedRemainingMs = this.deadline !== null ? Math.max(0, this.deadline - this.pausedAt) : null
+    this.clearTimers()
+  }
+
+  resume() {
+    if (this.pausedAt === null) return
+    const remaining = this.pausedRemainingMs
+    this.pausedAt = null
+    this.pausedRemainingMs = null
+    if (!this.game) return
+
+    if (this.game.phase === 'playing') {
+      const player = currentPlayer(this.game)
+      if (player.isBot) {
+        this.schedule()
+      } else if (this.game.settings.turnSeconds > 0) {
+        const ms = remaining ?? this.game.settings.turnSeconds * 1000
+        const turnId = this.game.turnId
+        this.deadline = this.now() + ms
+        this.scheduledTurnId = turnId
+        this.turnTimer = setTimeout(() => this.timeout(player.id, turnId), ms)
+      }
+    } else if (this.game.phase === 'roundOver') {
+      const ms = remaining ?? this.roundBreakMs
+      this.deadline = this.now() + ms
+      this.roundTimer = setTimeout(() => this.advanceRound(), ms)
+    }
+    this.scheduleCatches()
+    this.sendGame([])
   }
 
   private reset() {

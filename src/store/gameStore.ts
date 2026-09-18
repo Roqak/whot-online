@@ -61,6 +61,8 @@ interface StoreState {
   handSort: HandSort
   /** True when there is no server: solo against bots, for portal builds. */
   isLocal: boolean
+  /** Solo mode only: bot moves and turn/round timers are frozen. */
+  paused: boolean
 
   setProfile: (profile: Partial<Profile>) => void
   createRoom: (opts?: { quickPlay?: boolean }) => void
@@ -79,6 +81,8 @@ interface StoreState {
   nextRound: () => void
   backToLobby: () => void
   cheer: (emoji: Reaction, targetId?: string) => void
+  pauseGame: () => void
+  resumeGame: () => void
   toggleSound: () => void
   cycleHandSort: () => void
   clearFormError: () => void
@@ -272,6 +276,7 @@ export const useGameStore = create<StoreState>((set, get) => {
     soundOn,
     handSort: storage.get<HandSort>(local, 'whot:sort', 'shape'),
     isLocal: LOCAL_ONLY,
+    paused: false,
 
     setProfile: (patch) => {
       const next = { ...get().profile, ...patch }
@@ -318,6 +323,20 @@ export const useGameStore = create<StoreState>((set, get) => {
     nextRound: () => send({ t: 'nextRound' }),
     backToLobby: () => send({ t: 'backToLobby' }),
     cheer: (emoji, targetId) => send({ t: 'react', emoji, targetId }),
+
+    // Only solo (LocalTable) games can pause: there's no other player whose
+    // clock it would unfairly stop. Bypasses `send`/ClientMessage since the
+    // server protocol has no pause concept.
+    pauseGame: () => {
+      if (!LOCAL_ONLY || !localTable) return
+      localTable.pause()
+      set({ paused: true })
+    },
+    resumeGame: () => {
+      if (!LOCAL_ONLY || !localTable) return
+      localTable.resume()
+      set({ paused: false })
+    },
 
     toggleSound: () => {
       const next = !get().soundOn
