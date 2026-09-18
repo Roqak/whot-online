@@ -37,6 +37,7 @@ android {
 dependencies {
     implementation("androidx.appcompat:appcompat:1.7.0")
     implementation("androidx.webkit:webkit:1.11.0")
+    implementation("com.google.android.gms:play-services-games-v2:20.1.2")
     // appcompat and webkit pull different kotlin-stdlib generations; align on the full artifact.
     implementation("org.jetbrains.kotlin:kotlin-stdlib:1.8.22")
     constraints {

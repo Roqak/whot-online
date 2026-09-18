@@ -1,5 +1,6 @@
 package com.whot.app;
 
+import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.graphics.Color;
 import android.os.Build;
@@ -26,17 +27,22 @@ public class MainActivity extends Activity {
     private static final String ASSET_HOST = "appassets.androidplatform.net";
 
     private WebView webView;
+    private PlayGamesBridge playGamesBridge;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
 
+        playGamesBridge = new PlayGamesBridge(this);
+        playGamesBridge.signInSilently();
+
         final WebViewAssetLoader assetLoader = new WebViewAssetLoader.Builder()
                 .addPathHandler("/assets/", new WebViewAssetLoader.AssetsPathHandler(this))
                 .build();
 
         webView = new WebView(this);
+        webView.addJavascriptInterface(playGamesBridge, "Android");
         WebSettings s = webView.getSettings();
         s.setJavaScriptEnabled(true);
         s.setDomStorageEnabled(true);
@@ -60,6 +66,20 @@ public class MainActivity extends Activity {
             public boolean shouldOverrideKeyEvent(WebView view, android.view.KeyEvent event) {
                 // BACK is the only key the game cares about: it owns the rest.
                 return event.getKeyCode() != android.view.KeyEvent.KEYCODE_BACK;
+            }
+
+            @Override
+            public boolean onRenderProcessGone(WebView view, android.webkit.RenderProcessGoneDetail detail) {
+                // The renderer died (low memory or a GPU crash): a dead WebView
+                // would be left on screen. Show a way back instead.
+                webView = null;
+                setContentView(android.view.LayoutInflater
+                        .from(MainActivity.this)
+                        .inflate(R.layout.crash, null));
+                findViewById(R.id.crash_restart).setOnClickListener(v -> {
+                    recreate();
+                });
+                return true; // the old WebView is dead; we removed it ourselves
             }
         });
         setContentView(webView);

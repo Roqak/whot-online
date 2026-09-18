@@ -104,6 +104,26 @@
           animation: none;
         }
       }
+      /* The error log survives React: when the game crashes, this is what
+         the player (and we, from their screenshot) can actually read. */
+      #jslog {
+        position: fixed;
+        inset: auto 0 0 0;
+        z-index: 2147483647;
+        display: none;
+        max-height: 42vh;
+        overflow-y: auto;
+        padding: 10px 12px calc(10px + env(safe-area-inset-bottom, 0px));
+        background: rgba(11, 14, 20, 0.96);
+        color: #e8907c;
+        font: 11px/1.5 ui-monospace, Menlo, Consolas, monospace;
+        white-space: pre-wrap;
+        overflow-wrap: anywhere;
+        border-top: 1px solid #3a4356;
+      }
+      #jslog:not(:empty) {
+        display: block;
+      }
     </style>
   </head>
   <body>
@@ -119,6 +139,7 @@
       </div>
     </div>
     <div id="root"></div>
+    <div id="jslog" aria-live="polite" onclick="this.textContent=''"></div>
     <noscript>
       <p style="position: fixed; inset: auto 0 40%; text-align: center; color: #efe9dc; font: 15px system-ui, sans-serif">
         Last Card needs JavaScript turned on to deal the cards.
@@ -131,6 +152,30 @@
     -->
     <script>
       ;(function () {
+        // Every error that reaches the window lands in #jslog, which sits
+        // above everything and survives a React crash. Tap it to clear.
+        var log = document.getElementById('jslog')
+        function note() {
+          if (!log || log.dataset.off) return
+          log.textContent += Array.prototype.slice.call(arguments).join(' ') + '\n'
+          log.scrollTop = log.scrollHeight
+        }
+        window.__note = note
+        var err = console.error
+        console.error = function () {
+          note.apply(null, arguments)
+          try {
+            err.apply(console, arguments)
+          } catch (e) {}
+        }
+        window.addEventListener('error', function (event) {
+          note('Error:', event.message, 'at', (event.filename || '') + ':' + (event.lineno || 0))
+        })
+        window.addEventListener('unhandledrejection', function (event) {
+          var reason = event.reason
+          note('Rejected:', reason && reason.message ? reason.message : String(reason))
+        })
+
         var boot = document.getElementById('boot')
         var root = document.getElementById('root')
         var title = boot.querySelector('.boot-title')

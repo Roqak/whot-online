@@ -20,6 +20,7 @@ import { sortHand } from '../lib/hand'
 import { copyText } from '../lib/share'
 import { useCountdown, useOnChange } from '../lib/hooks'
 import { playSound, vibrate } from '../lib/sound'
+import { reportMatchWin } from '../native/playGames'
 import { Avatar } from './Avatar'
 import { ShapeIcon } from './cards/shapes'
 import { Announcement, Announcer } from './game/Announcer'
@@ -158,6 +159,7 @@ function Table({ view }: { view: GameView }) {
           if (mine(event.winnerId)) {
             celebrate(true)
             playSound('win')
+            reportMatchWin()
           }
           break
       }
