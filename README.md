@@ -25,6 +25,7 @@ npm run lint
 ```bash
 npm run build          # dist/       the online game: rooms, links, 3D spectators
 npm run build:portal   # dist-portal/ solo against bots, no server at all
+npm run build:android  # android/LastCard-debug.apk  the solo build as an Android app
 ```
 
 HTML5 game portals (GameDistribution, Poki, CrazyGames and friends) host static files and will not run a backend, so the portal build drops the socket and runs the game in the browser instead. [localTable.ts](src/net/localTable.ts) speaks the same message protocol as the server, so the interface cannot tell which one it is talking to, and both use the same engine and the same bots: the rules cannot drift apart.

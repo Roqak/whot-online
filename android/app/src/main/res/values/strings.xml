@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Last Card</string>
+
+    <!-- Play Console → Play Games Services → Setup → Credentials. Replace
+         before release; sign-in silently no-ops with the placeholder. -->
+    <string name="play_games_app_id" translatable="false">000000000000</string>
+    <!-- Play Console → Play Games Services → Leaderboards → your "Wins" leaderboard's ID. -->
+    <string name="leaderboard_wins_id" translatable="false">CgkI_placeholder</string>
+</resources>

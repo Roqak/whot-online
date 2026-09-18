@@ -645,8 +645,30 @@ function SizeGuard({ onStall }: { onStall: () => void }) {
 
 export default function Table3D(props: Table3DProps) {
   const [failed, setFailed] = useState(false)
+  const [canvasKey, setCanvasKey] = useState(0)
+  const restoreWatchdog = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => () => disposeCardTextures(), [])
+
+  const remount = () => {
+    if (restoreWatchdog.current) clearTimeout(restoreWatchdog.current)
+    restoreWatchdog.current = null
+    setCanvasKey((k) => k + 1)
+  }
+
+  // Android's WebView tears down the GPU surface while the app is
+  // backgrounded, without reliably firing webglcontextlost/restored or
+  // even visibilitychange for it (confirmed: relying on those still left
+  // the canvas blank). MainActivity's onResume() is the one signal Android
+  // guarantees, so it dispatches this event directly; a remount is the
+  // only fix since Three's textures/programs are tied to the dead context.
+  useEffect(() => {
+    window.addEventListener('lastcard:resume', remount)
+    return () => {
+      window.removeEventListener('lastcard:resume', remount)
+      if (restoreWatchdog.current) clearTimeout(restoreWatchdog.current)
+    }
+  }, [])
 
   if (failed) {
     return (
@@ -659,12 +681,17 @@ export default function Table3D(props: Table3DProps) {
   return (
     <div className="relative h-full w-full">
       <Canvas
+        key={canvasKey}
         dpr={[1, 1.75]}
         resize={{ debounce: 0, scroll: false }}
         camera={{ position: TABLE_VIEW, fov: 45 }}
         gl={{ antialias: true, powerPreference: 'high-performance' }}
         onCreated={({ gl }) => {
-          gl.domElement.addEventListener('webglcontextlost', () => setFailed(true))
+          gl.domElement.addEventListener('webglcontextlost', (e) => {
+            e.preventDefault()
+            restoreWatchdog.current = setTimeout(() => setFailed(true), 4000)
+          })
+          gl.domElement.addEventListener('webglcontextrestored', remount)
         }}
       >
         <SizeGuard onStall={props.onStall} />

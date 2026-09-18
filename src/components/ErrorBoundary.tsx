@@ -32,8 +32,10 @@ export class ErrorBoundary extends Component<Props, State> {
         <p className="max-w-sm text-sm text-fg-muted">
           The table hit an unexpected error. Reloading usually sorts it out.
         </p>
-        <pre className="max-h-40 max-w-md overflow-auto rounded-xl bg-table-900/80 p-3 text-left text-[11px] text-fg-faint">
-          {this.state.error.message}
+        <pre className="max-h-56 max-w-md overflow-auto whitespace-pre-wrap rounded-xl bg-table-900/80 p-3 text-left text-[11px] text-fg-faint">
+          {this.state.error.message || String(this.state.error)}
+          {'\n'}
+          {this.state.error.stack?.split('\n').slice(1, 4).join('\n')}
         </pre>
         <button className="btn-primary px-6" onClick={() => window.location.reload()}>
           Reload

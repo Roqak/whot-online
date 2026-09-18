@@ -61,8 +61,16 @@ interface StoreState {
   handSort: HandSort
   /** True when there is no server: solo against bots, for portal builds. */
   isLocal: boolean
+  /** True for the whole session in a portal (app) build; unlike isLocal, never flips. */
+  isPortal: boolean
+  /** Solo mode only: bot moves and turn/round timers are frozen. */
+  paused: boolean
 
   setProfile: (profile: Partial<Profile>) => void
+  /** Portal builds default to solo; this opts into a real online table for the rest of the session. */
+  goOnline: () => void
+  /** Back to solo/offline; only meaningful for portal builds. */
+  goLocal: () => void
   createRoom: (opts?: { quickPlay?: boolean }) => void
   joinRoom: (code: string) => void
   watchRoom: (code: string) => void
@@ -79,6 +87,8 @@ interface StoreState {
   nextRound: () => void
   backToLobby: () => void
   cheer: (emoji: Reaction, targetId?: string) => void
+  pauseGame: () => void
+  resumeGame: () => void
   toggleSound: () => void
   cycleHandSort: () => void
   clearFormError: () => void
@@ -130,7 +140,7 @@ let cheerSeq = 0
 
 export const useGameStore = create<StoreState>((set, get) => {
   const send = (msg: ClientMessage) => {
-    if (LOCAL_ONLY) {
+    if (get().isLocal) {
       if (!localTable) {
         localTable = new LocalTable(handleMessage)
         set({ status: 'open' })
@@ -164,6 +174,9 @@ export const useGameStore = create<StoreState>((set, get) => {
       pendingCardId: null,
       busy: null,
       cheers: [],
+      // Back to the app's offline default once a room's left, so opting into
+      // an online table is a fresh choice each time rather than sticky.
+      isLocal: LOCAL_ONLY,
     })
     setUrl('/')
   }
@@ -272,12 +285,17 @@ export const useGameStore = create<StoreState>((set, get) => {
     soundOn,
     handSort: storage.get<HandSort>(local, 'whot:sort', 'shape'),
     isLocal: LOCAL_ONLY,
+    isPortal: LOCAL_ONLY,
+    paused: false,
 
     setProfile: (patch) => {
       const next = { ...get().profile, ...patch }
       storage.set(local, 'whot:profile', next)
       set({ profile: next, formError: null })
     },
+
+    goOnline: () => set({ isLocal: false }),
+    goLocal: () => set({ isLocal: true }),
 
     createRoom: (opts) => {
       quickPlayPending = !!opts?.quickPlay
@@ -297,7 +315,23 @@ export const useGameStore = create<StoreState>((set, get) => {
     },
 
     leaveRoom: () => {
+      // Capture before send(): for a local game, send({t:'leave'}) resolves
+      // synchronously through LocalTable and already clears `game` via
+      // clearRoom() by the time it returns, so checking get().game after
+      // send() would always see null and this branch would never fire.
+      const hadGame = !!get().game
       if (get().session || get().watching) send({ t: 'leave' })
+      // Android's WebView can stop painting the entire page once the 3D
+      // table's WebGL context is torn down on unmount — a GPU-compositor
+      // wedge, not a JS error, so nothing throws and nothing is left to
+      // recover from client-side. Only reachable inside the app
+      // (`window.Android` only exists there) and only when a game (so a
+      // <Canvas>) was actually mounted; a full reload sidesteps it since
+      // there's no game state left to preserve once we're leaving anyway.
+      if (typeof window !== 'undefined' && window.Android && hadGame) {
+        window.location.reload()
+        return
+      }
       clearRoom()
     },
 
@@ -318,6 +352,20 @@ export const useGameStore = create<StoreState>((set, get) => {
     nextRound: () => send({ t: 'nextRound' }),
     backToLobby: () => send({ t: 'backToLobby' }),
     cheer: (emoji, targetId) => send({ t: 'react', emoji, targetId }),
+
+    // Only solo (LocalTable) games can pause: there's no other player whose
+    // clock it would unfairly stop. Bypasses `send`/ClientMessage since the
+    // server protocol has no pause concept.
+    pauseGame: () => {
+      if (!LOCAL_ONLY || !localTable) return
+      localTable.pause()
+      set({ paused: true })
+    },
+    resumeGame: () => {
+      if (!LOCAL_ONLY || !localTable) return
+      localTable.resume()
+      set({ paused: false })
+    },
 
     toggleSound: () => {
       const next = !get().soundOn
