@@ -65,7 +65,14 @@ function Table({ view }: { view: GameView }) {
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [shapeFor, setShapeFor] = useState<string | null>(null)
   const [shakeId, setShakeId] = useState<string | null>(null)
-  const [showRules, setShowRules] = useState(false)
+  // First game ever: open the rules once instead of making a new player find
+  // the help icon themselves. Never shown again after that.
+  const [showRules, setShowRules] = useState(() => {
+    if (typeof window === 'undefined') return false
+    if (window.localStorage.getItem('whot:seenRules')) return false
+    window.localStorage.setItem('whot:seenRules', '1')
+    return true
+  })
   const [showReactions, setShowReactions] = useState(false)
   const [confirmLeave, setConfirmLeave] = useState(false)
   const [copied, setCopied] = useState(false)
