@@ -65,14 +65,24 @@ function Table({ view }: { view: GameView }) {
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [shapeFor, setShapeFor] = useState<string | null>(null)
   const [shakeId, setShakeId] = useState<string | null>(null)
+  const [showRules, setShowRules] = useState(false)
+  // Tracks whether the auto-open below (not a manual help-icon tap) is what's
+  // currently showing, so closing it resumes only the pause it caused.
+  const autoRulesPaused = useRef(false)
   // First game ever: open the rules once instead of making a new player find
-  // the help icon themselves. Never shown again after that.
-  const [showRules, setShowRules] = useState(() => {
-    if (typeof window === 'undefined') return false
-    if (window.localStorage.getItem('whot:seenRules')) return false
+  // the help icon themselves, and pause so bots/timers don't run while they
+  // read. Never shown again after that.
+  useEffect(() => {
+    if (window.localStorage.getItem('whot:seenRules')) return
     window.localStorage.setItem('whot:seenRules', '1')
-    return true
-  })
+    setShowRules(true)
+    if (isLocal) {
+      pauseGame()
+      autoRulesPaused.current = true
+    }
+    // Runs once on this GameTable's first mount only.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
   const [showReactions, setShowReactions] = useState(false)
   const [confirmLeave, setConfirmLeave] = useState(false)
   const [copied, setCopied] = useState(false)
@@ -522,7 +532,17 @@ function Table({ view }: { view: GameView }) {
         />
       </div>
 
-      <RulesSheet open={showRules} onClose={() => setShowRules(false)} settings={view.settings} />
+      <RulesSheet
+        open={showRules}
+        onClose={() => {
+          setShowRules(false)
+          if (autoRulesPaused.current) {
+            autoRulesPaused.current = false
+            resumeGame()
+          }
+        }}
+        settings={view.settings}
+      />
     </div>
   )
 }
