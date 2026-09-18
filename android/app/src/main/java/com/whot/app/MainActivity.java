@@ -1,6 +1,5 @@
 package com.whot.app;
 
-import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.graphics.Color;
 import android.os.Build;
@@ -24,6 +23,7 @@ import androidx.webkit.WebViewClientCompat;
 public class MainActivity extends Activity {
 
     private static final String START_URL = "https://appassets.androidplatform.net/assets/index.html";
+    private static final String ASSET_HOST = "appassets.androidplatform.net";
 
     private WebView webView;
 
@@ -53,11 +53,22 @@ public class MainActivity extends Activity {
             @Override
             public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
                 // Keep the game inside the app; nothing on the web is needed to play.
-                return !request.getUrl().getHost().equals("appassets.androidplatform.net");
+                return !ASSET_HOST.equals(request.getUrl().getHost());
+            }
+
+            @Override
+            public boolean shouldOverrideKeyEvent(WebView view, android.view.KeyEvent event) {
+                // BACK is the only key the game cares about: it owns the rest.
+                return event.getKeyCode() != android.view.KeyEvent.KEYCODE_BACK;
             }
         });
         setContentView(webView);
-        webView.loadUrl(START_URL);
+        if (savedInstanceState == null) {
+            webView.loadUrl(START_URL);
+        } else {
+            webView.restoreState(savedInstanceState);
+            if (webView.getUrl() == null) webView.loadUrl(START_URL);
+        }
     }
 
     @Override
@@ -75,10 +86,40 @@ public class MainActivity extends Activity {
                         | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION);
     }
 
+    // -------------------------------------------------------------- lifecycle
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+        // Stop sounds and timers while the app is in the background: the game
+        // is the only thing running, so a paused WebView is exactly a paused
+        // game. The local table re-creates its state from the DOM on resume.
+        if (webView != null) {
+            webView.onPause();
+            webView.pauseTimers();
+        }
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        if (webView != null) {
+            webView.resumeTimers();
+            webView.onResume();
+        }
+    }
+
+    @Override
+    protected void onSaveInstanceState(Bundle outState) {
+        super.onSaveInstanceState(outState);
+        if (webView != null) webView.saveState(outState);
+    }
+
     @Override
     public void onBackPressed() {
-        // The game is one screen deep; give the WebView a chance to handle
-        // anything in-app history, otherwise let the default finish it.
+        // The game is a single page. BACK with in-app history (should not
+        // normally happen on the virtual origin) steps back inside the game;
+        // otherwise the game keeps running and BACK simply leaves the app.
         if (webView != null && webView.canGoBack()) {
             webView.goBack();
         } else {
