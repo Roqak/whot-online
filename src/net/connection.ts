@@ -1,4 +1,4 @@
-import { ClientMessage, ServerMessage, WS_PATH } from './protocol'
+import { ClientMessage, ServerMessage, WS_PATH, publicOrigin } from './protocol'
 
 export type ConnectionStatus = 'idle' | 'connecting' | 'open' | 'reconnecting'
 
@@ -13,8 +13,9 @@ const HEARTBEAT_MS = 25_000
 const MAX_BACKOFF_MS = 8_000
 
 export function socketUrl(): string {
-  const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws'
-  return `${protocol}://${window.location.host}${WS_PATH}`
+  const origin = new URL(publicOrigin())
+  const protocol = origin.protocol === 'https:' ? 'wss' : 'ws'
+  return `${protocol}://${origin.host}${WS_PATH}`
 }
 
 /** A WebSocket that reconnects with backoff and queues messages while offline. */

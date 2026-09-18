@@ -3,6 +3,19 @@ import { SUITS } from '../types/game'
 
 export const WS_PATH = '/ws'
 export const MAX_NAME_LENGTH = 16
+
+// The Android app serves the bundled game from a WebViewAssetLoader virtual
+// origin (appassets.androidplatform.net) so its ES modules load, but that
+// host isn't reachable by anyone else and has no real server behind it.
+// Share links and the game socket both need the real production origin
+// instead whenever we're running inside that shell.
+const PACKAGED_HOST = 'appassets.androidplatform.net'
+const PRODUCTION_ORIGIN = 'https://lastcard.fun'
+
+export function publicOrigin(): string {
+  if (typeof window === 'undefined') return PRODUCTION_ORIGIN
+  return window.location.host === PACKAGED_HOST ? PRODUCTION_ORIGIN : window.location.origin
+}
 export const ROOM_CODE_LENGTH = 6
 export const REACTIONS = ['👏', '😂', '😱', '🔥', '😤', '🙏'] as const
 export type Reaction = (typeof REACTIONS)[number]
@@ -141,9 +154,9 @@ export function normalizeRoomCode(code: string): string {
 }
 
 export function playUrl(code: string): string {
-  return `${window.location.origin}/r/${code}`
+  return `${publicOrigin()}/r/${code}`
 }
 
 export function watchUrl(code: string): string {
-  return `${window.location.origin}/w/${code}`
+  return `${publicOrigin()}/w/${code}`
 }

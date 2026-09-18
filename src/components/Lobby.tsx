@@ -4,7 +4,7 @@ import QRCode from 'qrcode'
 import { Check, Copy, Crown, Eye, LogOut, Play, QrCode, Share2, UserMinus, UserPlus, WifiOff } from 'lucide-react'
 import { toast } from 'sonner'
 import { useGameStore } from '../store/gameStore'
-import { watchUrl } from '../net/protocol'
+import { playUrl, watchUrl } from '../net/protocol'
 import { copyText, shareOrCopy } from '../lib/share'
 import { MAX_PLAYERS, MIN_PLAYERS } from '../engine/gameEngine'
 import { BotLevel, PICK_DEFENCE_LABELS, SETTING_LIMITS } from '../types/game'
@@ -32,7 +32,7 @@ export default function Lobby() {
   const [qr, setQr] = useState<string | null>(null)
   const [showBotMenu, setShowBotMenu] = useState(false)
 
-  const roomUrl = lobby ? `${window.location.origin}/r/${lobby.code}` : ''
+  const roomUrl = lobby ? playUrl(lobby.code) : ''
 
   useEffect(() => {
     if (!showQr || !roomUrl) return

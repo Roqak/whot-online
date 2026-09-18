@@ -22,6 +22,9 @@ export default function LandingPage() {
   const formError = useGameStore((s) => s.formError)
   const inviteCode = useGameStore((s) => s.inviteCode)
   const isLocal = useGameStore((s) => s.isLocal)
+  const isPortal = useGameStore((s) => s.isPortal)
+  const goOnline = useGameStore((s) => s.goOnline)
+  const goLocal = useGameStore((s) => s.goLocal)
 
   const [code, setCode] = useState(inviteCode ?? '')
   const [showJoin, setShowJoin] = useState(!!inviteCode)
@@ -130,6 +133,9 @@ export default function LandingPage() {
             <button className="btn-ghost w-full" disabled={!nameOk || busy !== null} onClick={() => createRoom()}>
               <Bot size={17} /> Set up the table
             </button>
+            <button className="w-full py-2 text-sm text-fg-faint hover:text-fg" onClick={goOnline}>
+              <Users size={15} className="mr-1 inline" /> Play online with friends
+            </button>
           </>
         ) : (
           <>
@@ -154,6 +160,11 @@ export default function LandingPage() {
                 Play bots
               </button>
             </div>
+            {isPortal && (
+              <button className="w-full py-2 text-sm text-fg-faint hover:text-fg" onClick={goLocal}>
+                Play solo instead
+              </button>
+            )}
           </>
         )}
         {!nameOk && <p className="text-center text-xs text-fg-faint">Add a name to get going</p>}

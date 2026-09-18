@@ -61,10 +61,16 @@ interface StoreState {
   handSort: HandSort
   /** True when there is no server: solo against bots, for portal builds. */
   isLocal: boolean
+  /** True for the whole session in a portal (app) build; unlike isLocal, never flips. */
+  isPortal: boolean
   /** Solo mode only: bot moves and turn/round timers are frozen. */
   paused: boolean
 
   setProfile: (profile: Partial<Profile>) => void
+  /** Portal builds default to solo; this opts into a real online table for the rest of the session. */
+  goOnline: () => void
+  /** Back to solo/offline; only meaningful for portal builds. */
+  goLocal: () => void
   createRoom: (opts?: { quickPlay?: boolean }) => void
   joinRoom: (code: string) => void
   watchRoom: (code: string) => void
@@ -134,7 +140,7 @@ let cheerSeq = 0
 
 export const useGameStore = create<StoreState>((set, get) => {
   const send = (msg: ClientMessage) => {
-    if (LOCAL_ONLY) {
+    if (get().isLocal) {
       if (!localTable) {
         localTable = new LocalTable(handleMessage)
         set({ status: 'open' })
@@ -168,6 +174,9 @@ export const useGameStore = create<StoreState>((set, get) => {
       pendingCardId: null,
       busy: null,
       cheers: [],
+      // Back to the app's offline default once a room's left, so opting into
+      // an online table is a fresh choice each time rather than sticky.
+      isLocal: LOCAL_ONLY,
     })
     setUrl('/')
   }
@@ -276,6 +285,7 @@ export const useGameStore = create<StoreState>((set, get) => {
     soundOn,
     handSort: storage.get<HandSort>(local, 'whot:sort', 'shape'),
     isLocal: LOCAL_ONLY,
+    isPortal: LOCAL_ONLY,
     paused: false,
 
     setProfile: (patch) => {
@@ -283,6 +293,9 @@ export const useGameStore = create<StoreState>((set, get) => {
       storage.set(local, 'whot:profile', next)
       set({ profile: next, formError: null })
     },
+
+    goOnline: () => set({ isLocal: false }),
+    goLocal: () => set({ isLocal: true }),
 
     createRoom: (opts) => {
       quickPlayPending = !!opts?.quickPlay
