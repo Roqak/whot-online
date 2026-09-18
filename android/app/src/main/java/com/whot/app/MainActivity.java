@@ -126,6 +126,13 @@ public class MainActivity extends Activity {
         if (webView != null) {
             webView.resumeTimers();
             webView.onResume();
+            // The WebView's GPU surface can be torn down while backgrounded
+            // without the page ever seeing a webglcontextlost/visibilitychange
+            // event for it (WebView doesn't reliably fire either). Tell the
+            // page directly so it can remount the 3D canvas from a known-good
+            // native signal instead of guessing from web APIs.
+            webView.evaluateJavascript(
+                    "window.dispatchEvent(new Event('lastcard:resume'))", null);
         }
     }
 
