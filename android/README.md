@@ -1,4 +1,4 @@
-# Whot! for Android
+# Last Card for Android
 
 A native Android app for the game: the solo build (same engine, same bots as
 [lastcard.fun](https://lastcard.fun)) is bundled inside the APK and runs
@@ -16,7 +16,7 @@ It runs `npm run build:portal` (the offline solo build into `dist-portal/`),
 copies it into `android/app/src/main/assets/`, then runs Gradle
 (`assembleDebug`). The APK lands in
 `android/app/build/outputs/apk/debug/app-debug.apk` and is copied to
-`android/Whot-debug.apk`.
+`android/LastCard-debug.apk`.
 
 Requires JDK 17 and an Android SDK (platform 35) — `local.properties` points
 Gradle at yours, same as [../android-tv](../android-tv).

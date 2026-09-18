@@ -16,7 +16,7 @@ import androidx.webkit.WebViewAssetLoader;
 import androidx.webkit.WebViewClientCompat;
 
 /**
- * Whot! for Android. The game ships inside the APK: the solo build
+ * Last Card for Android. The game ships inside the APK: the solo build
  * (same engine, same bots as the online game) is bundled in assets/ and
  * served by WebViewAssetLoader, which gives it a proper https origin so
  * the app's ES modules load. Everything runs on device, no server needed.
