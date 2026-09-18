@@ -1,6 +1,6 @@
 export type Suit = 'circle' | 'triangle' | 'cross' | 'square' | 'star'
 export type Shape = Suit | 'whot'
-export type BotLevel = 'easy' | 'normal' | 'hard'
+export type BotLevel = 'easy' | 'normal' | 'hard' | 'expert'
 
 export interface Card {
   id: string

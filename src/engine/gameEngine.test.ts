@@ -324,7 +324,7 @@ describe('views', () => {
 
 describe('bot simulation', () => {
   it('plays full matches without illegal moves', () => {
-    const levels = ['easy', 'normal', 'hard'] as const
+    const levels = ['easy', 'normal', 'hard', 'expert'] as const
     for (let seed = 0; seed < 40; seed++) {
       const rng = seededRng(seed)
       let state = createMatch(
@@ -333,7 +333,7 @@ describe('bot simulation', () => {
           name: `Bot ${i}`,
           avatar: 'robot',
           isBot: true,
-          botLevel: levels[(seed + i) % 3],
+          botLevel: levels[(seed + i) % levels.length],
         })),
         { ...DEFAULT_SETTINGS, pickDefence: (['stack', 'pass', 'none'] as const)[seed % 3], targetScore: 50 },
         rng,

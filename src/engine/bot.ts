@@ -22,9 +22,10 @@ export const BOT_CATCH: Record<BotLevel, { chance: number; delayMs: [number, num
   easy: { chance: 0.3, delayMs: [3500, 6000] },
   normal: { chance: 0.65, delayMs: [2200, 4000] },
   hard: { chance: 0.95, delayMs: [1200, 2200] },
+  expert: { chance: 1, delayMs: [600, 1200] },
 }
 
-const REMEMBER_LAST_CARD: Record<BotLevel, number> = { easy: 0.6, normal: 0.9, hard: 1 }
+const REMEMBER_LAST_CARD: Record<BotLevel, number> = { easy: 0.6, normal: 0.9, hard: 1, expert: 1 }
 
 /**
  * Picks the bot's move for its turn. May return a "last card" call before the play.
@@ -61,15 +62,19 @@ function bestCard(state: GameState, meIndex: number, legal: Card[], level: BotLe
   let best = legal[0]
   let bestScore = -Infinity
   for (const card of legal) {
-    let score = cardPoints(card) * 0.4
+    // Expert sheds point-heavy cards faster: a round ending on a tender or a
+    // catch costs less when the hand's already lighter.
+    let score = cardPoints(card) * (level === 'expert' ? 0.55 : 0.4)
     if (card.shape === 'whot') {
       // Save the Whot unless it's the only way out.
-      score -= level === 'hard' ? 30 : 18
+      score -= level === 'expert' ? 34 : level === 'hard' ? 30 : 18
     } else {
       if (card.number === HOLD_ON || card.number === GENERAL_MARKET) score += me.hand.length > 1 ? 12 : 0
       if (card.number === PICK_TWO || card.number === PICK_THREE) score += 8 + (nextIsClose ? 20 : 0)
       if (card.number === SUSPENSION) score += 6 + (nextIsClose ? 14 : 0)
       if (level === 'hard') score += (suitCounts[card.shape] - 1) * 3
+      // Expert manages its hand's shape spread more aggressively than hard.
+      if (level === 'expert') score += (suitCounts[card.shape] - 1) * 5
     }
     score += rng() * 2
     if (score > bestScore) {

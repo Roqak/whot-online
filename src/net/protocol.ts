@@ -76,7 +76,7 @@ export type ServerMessage =
   | { t: 'cheer'; from: string; emoji: Reaction; targetId: string | null; spectator: boolean }
   | { t: 'pong' }
 
-const BOT_LEVELS: BotLevel[] = ['easy', 'normal', 'hard']
+const BOT_LEVELS: BotLevel[] = ['easy', 'normal', 'hard', 'expert']
 
 const isObj = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null
 const isStr = (v: unknown, max = 64): v is string => typeof v === 'string' && v.length <= max

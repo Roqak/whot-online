@@ -14,6 +14,7 @@ const BOT_LEVELS: { value: BotLevel; label: string }[] = [
   { value: 'easy', label: 'Easy' },
   { value: 'normal', label: 'Normal' },
   { value: 'hard', label: 'Hard' },
+  { value: 'expert', label: 'Expert' },
 ]
 
 export default function Lobby() {
