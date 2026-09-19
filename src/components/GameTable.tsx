@@ -66,20 +66,23 @@ function Table({ view }: { view: GameView }) {
   const [shapeFor, setShapeFor] = useState<string | null>(null)
   const [shakeId, setShakeId] = useState<string | null>(null)
   const [showRules, setShowRules] = useState(false)
-  // Tracks whether the auto-open below (not a manual help-icon tap) is what's
-  // currently showing, so closing it resumes only the pause it caused.
-  const autoRulesPaused = useRef(false)
+  // Tracks whether opening rules is what caused the current pause, so
+  // closing it only resumes a pause it caused itself — not one the player
+  // set separately (e.g. tapped Pause, then opened Help on top of that).
+  const rulesPaused = useRef(false)
+  const openRules = () => {
+    if (isLocal && !paused) {
+      pauseGame()
+      rulesPaused.current = true
+    }
+    setShowRules(true)
+  }
   // First game ever: open the rules once instead of making a new player find
-  // the help icon themselves, and pause so bots/timers don't run while they
-  // read. Never shown again after that.
+  // the help icon themselves. Never shown again after that.
   useEffect(() => {
     if (window.localStorage.getItem('whot:seenRules')) return
     window.localStorage.setItem('whot:seenRules', '1')
-    setShowRules(true)
-    if (isLocal) {
-      pauseGame()
-      autoRulesPaused.current = true
-    }
+    openRules()
     // Runs once on this GameTable's first mount only.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
@@ -331,7 +334,7 @@ function Table({ view }: { view: GameView }) {
           <button className="btn-icon" onClick={toggleSound} aria-label={soundOn ? 'Mute sound' : 'Unmute sound'}>
             {soundOn ? <Volume2 size={17} /> : <VolumeX size={17} />}
           </button>
-          <button className="btn-icon" onClick={() => setShowRules(true)} aria-label="How to play">
+          <button className="btn-icon" onClick={openRules} aria-label="How to play">
             <HelpCircle size={17} />
           </button>
         </div>
@@ -536,8 +539,8 @@ function Table({ view }: { view: GameView }) {
         open={showRules}
         onClose={() => {
           setShowRules(false)
-          if (autoRulesPaused.current) {
-            autoRulesPaused.current = false
+          if (rulesPaused.current) {
+            rulesPaused.current = false
             resumeGame()
           }
         }}
