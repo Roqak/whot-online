@@ -33,3 +33,12 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 .tmp-serve/
+.certs/
+vite.https.config.ts
+
+# Play upload key (keep out of git; back up the .jks + password separately)
+/upload-keystore.jks
+/upload-keystore.properties
+
+# Google Play Developer API service account key
+/play-service-account.json
