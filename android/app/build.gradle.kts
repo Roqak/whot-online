@@ -20,12 +20,12 @@ play {
 
 android {
     namespace = "com.whot.app"
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "fun.lastcard.whot"
         minSdk = 21
-        targetSdk = 35
+        targetSdk = 36
         versionCode = 9
         versionName = "1.6.2"
     }
