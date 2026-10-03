@@ -5,6 +5,7 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { createGzip } from 'node:zlib'
 import { attachGameServer } from './attach'
+import { leaderboard } from './leaderboard'
 
 const PORT = Number(process.env.PORT ?? 3000)
 const HOST = process.env.HOST ?? '0.0.0.0'
@@ -50,6 +51,15 @@ const server = http.createServer(async (req, res) => {
     res.writeHead(200, { 'Content-Type': 'text/plain' })
     return res.end('ok')
   }
+
+  if (pathname === '/api/leaderboard') {
+    res.setHeader('Access-Control-Allow-Origin', '*')
+    res.setHeader('Cache-Control', 'no-cache')
+    const entries = leaderboard.getEntries(50)
+    res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' })
+    return res.end(JSON.stringify({ ok: true, entries }))
+  }
+
   if (req.method !== 'GET' && req.method !== 'HEAD') {
     res.writeHead(405)
     return res.end()

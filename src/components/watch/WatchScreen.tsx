@@ -11,6 +11,7 @@ import { copyText, shareOrCopy } from '../../lib/share'
 import { useCountdown } from '../../lib/hooks'
 import { playSound, setSoundEnabled } from '../../lib/sound'
 import { Avatar } from '../Avatar'
+import { ReactionPicker } from '../ReactionPicker'
 import { WhotCard } from '../cards/WhotCard'
 import { fromEvents, splashFor, splashTone } from './highlights'
 import type { Highlight } from './highlights'
@@ -72,6 +73,7 @@ export default function WatchScreen() {
   const [showQr, setShowQr] = useState(false)
   const [qrData, setQrData] = useState<string | null>(null)
   const [muted, setMuted] = useState(false)
+  const [showAllReactions, setShowAllReactions] = useState(false)
 
   const [sceneStalled, setSceneStalled] = useState(false)
   const webgl = useMemo(hasWebGL, [])
@@ -428,8 +430,8 @@ export default function WatchScreen() {
             </button>
           ))}
         </div>
-        <div className="flex items-center justify-between gap-1">
-          {REACTIONS.map((emoji) => (
+        <div className="relative flex items-center justify-between gap-1">
+          {REACTIONS.slice(0, 6).map((emoji) => (
             <button
               key={emoji}
               onClick={() => sendCheer(emoji)}
@@ -439,6 +441,24 @@ export default function WatchScreen() {
               {emoji}
             </button>
           ))}
+          <button
+            onClick={() => setShowAllReactions((v) => !v)}
+            className="rounded-xl bg-table-800/70 px-2.5 py-2 text-xs font-semibold text-fg-muted transition-transform active:scale-95 hover:bg-table-700 hover:text-fg"
+            aria-label="More emojis"
+            title="More emojis"
+          >
+            +{REACTIONS.length - 6}
+          </button>
+          <AnimatePresence>
+            {showAllReactions && (
+              <div className="absolute bottom-full right-0 mb-2 z-40">
+                <ReactionPicker
+                  onSelect={(emoji) => sendCheer(emoji)}
+                  onClose={() => setShowAllReactions(false)}
+                />
+              </div>
+            )}
+          </AnimatePresence>
         </div>
         <p className="mt-1 text-center text-[10px] text-fg-faint">
           You are watching, so you cannot play a card. Cheers reach the table.

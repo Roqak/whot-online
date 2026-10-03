@@ -47,4 +47,19 @@ public class PlayGamesBridge {
             });
         });
     }
+
+    @JavascriptInterface
+    public void showLeaderboard() {
+        activity.runOnUiThread(() -> {
+            signInClient.isAuthenticated().addOnCompleteListener(task -> {
+                boolean signedIn = task.isSuccessful() && task.getResult().isAuthenticated();
+                if (!signedIn) return;
+                LeaderboardsClient leaderboards = PlayGames.getLeaderboardsClient(activity);
+                String leaderboardId = activity.getString(R.string.leaderboard_wins_id);
+                leaderboards.getLeaderboardIntent(leaderboardId).addOnSuccessListener(intent -> {
+                    activity.startActivityForResult(intent, 9002);
+                });
+            });
+        });
+    }
 }

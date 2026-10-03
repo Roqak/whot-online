@@ -1,10 +1,11 @@
 import { useState } from 'react'
 import { motion } from 'framer-motion'
-import { Bot, Loader2, Play, Users } from 'lucide-react'
+import { Bot, Loader2, Play, Trophy, Users } from 'lucide-react'
 import { useGameStore } from '../store/gameStore'
 import { AVATARS } from '../lib/avatars'
 import { MAX_NAME_LENGTH } from '../net/protocol'
 import { Avatar } from './Avatar'
+import { LeaderboardModal } from './LeaderboardModal'
 import { WhotCard } from './cards/WhotCard'
 
 const FAN = [
@@ -28,6 +29,7 @@ export default function LandingPage() {
 
   const [code, setCode] = useState(inviteCode ?? '')
   const [showJoin, setShowJoin] = useState(!!inviteCode)
+  const [showLeaderboard, setShowLeaderboard] = useState(false)
 
   const nameOk = profile.name.trim().length > 0
   const codeOk = code.trim().length >= 4
@@ -51,6 +53,16 @@ export default function LandingPage() {
         </div>
         <h1 className="font-display text-5xl font-extrabold tracking-tight">Last Card</h1>
         <p className="mt-1 text-sm text-fg-muted">Whot, the Nigerian card game, with your people, right now.</p>
+        <div className="mt-3 flex justify-center">
+          <button
+            onClick={() => setShowLeaderboard(true)}
+            className="inline-flex items-center gap-1.5 rounded-full border border-marigold/30 bg-table-800/80 px-3.5 py-1.5 text-xs font-semibold text-marigold shadow-sm transition-all hover:bg-table-700 active:scale-95"
+            aria-label="View leaderboard and stats"
+          >
+            <Trophy size={13} />
+            <span>Leaderboard</span>
+          </button>
+        </div>
       </header>
 
       <div className="panel rounded-2xl p-4">
@@ -173,6 +185,12 @@ export default function LandingPage() {
       <p className="text-center text-[11px] text-fg-faint">
         {isLocal ? 'Play Whot against the house. Your table, your rules.' : 'No signup. 2 to 6 players. Share a link and deal.'}
       </p>
+
+      <LeaderboardModal
+        isOpen={showLeaderboard}
+        onClose={() => setShowLeaderboard(false)}
+        currentUserName={profile.name}
+      />
     </div>
   )
 }

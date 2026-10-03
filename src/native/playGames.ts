@@ -1,30 +1,28 @@
-/**
- * Bridge to the Android shell's Play Games Services integration.
- * `window.Android` only exists inside the WebView-wrapped app
- * (see android/.../MainActivity.java addJavascriptInterface); it's
- * undefined on the web build, so every call here is a no-op there.
- */
+import { recordMatchResult } from '../lib/stats'
+
 declare global {
   interface Window {
     Android?: {
       submitWinCount(wins: number): void
+      showLeaderboard?(): void
     }
   }
 }
 
-const WIN_COUNT_KEY = 'whot.wins'
-
-function readWinCount(): number {
-  if (typeof window === 'undefined') return 0
-  const raw = window.localStorage.getItem(WIN_COUNT_KEY)
-  const n = raw ? parseInt(raw, 10) : 0
-  return Number.isFinite(n) ? n : 0
+export function hasNativeLeaderboard(): boolean {
+  return typeof window !== 'undefined' && typeof window.Android?.showLeaderboard === 'function'
 }
 
-/** Call once per match win. Bumps the local win count and, inside the Android app, submits it to the leaderboard. */
+export function showNativeLeaderboard(): boolean {
+  if (hasNativeLeaderboard()) {
+    window.Android?.showLeaderboard?.()
+    return true
+  }
+  return false
+}
+
+/** Call once per match win. Bumps the win count and submits to Android Play Games if present. */
 export function reportMatchWin(): void {
-  if (typeof window === 'undefined') return
-  const wins = readWinCount() + 1
-  window.localStorage.setItem(WIN_COUNT_KEY, String(wins))
-  window.Android?.submitWinCount(wins)
+  recordMatchResult({ won: true })
 }
+

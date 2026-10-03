@@ -26,6 +26,7 @@ import {
 import { BOT_CATCH, BOT_NAMES, chooseBotMove } from '../src/engine/bot'
 import { BOT_AVATAR, isValidAvatar } from '../src/lib/avatars'
 import { BotLevel, DEFAULT_SETTINGS, GameEvent, GameSettings, GameState, sanitizeSettings } from '../src/types/game'
+import { leaderboard } from './leaderboard'
 
 export interface Client {
   send(msg: ServerMessage): void
@@ -408,6 +409,18 @@ export class RoomManager {
 
   private commit(room: Room, state: GameState, events: GameEvent[]) {
     room.game = state
+    if (state.phase === 'matchOver') {
+      const over = events.find((e): e is Extract<GameEvent, { type: 'matchOver' }> => e.type === 'matchOver')
+      if (over) {
+        const winner = room.members.find((m) => m.id === over.winnerId)
+        const participants = room.members
+          .filter((m) => !m.isBot)
+          .map((m) => ({ name: m.name, avatar: m.avatar }))
+        if (winner && !winner.isBot && participants.length > 0) {
+          leaderboard.recordMatch({ name: winner.name, avatar: winner.avatar }, participants)
+        }
+      }
+    }
     this.schedule(room)
     this.broadcastGame(room, events)
   }

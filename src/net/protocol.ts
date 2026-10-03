@@ -17,7 +17,61 @@ export function publicOrigin(): string {
   return window.location.host === PACKAGED_HOST ? PRODUCTION_ORIGIN : window.location.origin
 }
 export const ROOM_CODE_LENGTH = 6
-export const REACTIONS = ['👏', '😂', '😱', '🔥', '😤', '🙏'] as const
+
+export const REACTION_CATEGORIES = [
+  {
+    id: 'quick',
+    name: 'Quick',
+    icon: '⚡',
+    emojis: ['👏', '😂', '🔥', '😱', '😤', '🙏'] as const,
+  },
+  {
+    id: 'faces',
+    name: 'Faces',
+    icon: '😀',
+    emojis: [
+      '💀', '😭', '🤣', '😎', '🥳', '🤫',
+      '🥱', '🤐', '🤯', '🥺', '😈', '🤡',
+      '😡', '🫡', '👀', '🫠',
+    ] as const,
+  },
+  {
+    id: 'hype',
+    name: 'Hype',
+    icon: '👑',
+    emojis: [
+      '👑', '🐐', '🏆', '🎯', '💥', '🍿',
+      '🌶️', '💣', '💔', '💪', '🕺', '💃',
+      '🤝', '✌️', '👍', '👎',
+    ] as const,
+  },
+  {
+    id: 'game',
+    name: 'Game',
+    icon: '🃏',
+    emojis: [
+      '🃏', '🎲', '🪓', '🛡️', '✨', '🔮',
+      '💨', '🚨', '👋', '🪄',
+    ] as const,
+  },
+] as const
+
+export const REACTIONS = [
+  // Quick (original 6 kept first for backwards compatibility)
+  '👏', '😂', '🔥', '😱', '😤', '🙏',
+  // Faces
+  '💀', '😭', '🤣', '😎', '🥳', '🤫',
+  '🥱', '🤐', '🤯', '🥺', '😈', '🤡',
+  '😡', '🫡', '👀', '🫠',
+  // Hype & Taunts
+  '👑', '🐐', '🏆', '🎯', '💥', '🍿',
+  '🌶️', '💣', '💔', '💪', '🕺', '💃',
+  '🤝', '✌️', '👍', '👎',
+  // Game & Magic
+  '🃏', '🎲', '🪓', '🛡️', '✨', '🔮',
+  '💨', '🚨', '👋', '🪄',
+] as const
+
 export type Reaction = (typeof REACTIONS)[number]
 
 export interface LobbyMember {

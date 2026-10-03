@@ -4,7 +4,7 @@ import confetti from 'canvas-confetti'
 import { ArrowDownUp, Check, Copy, Eye, HelpCircle, LogOut, Pause, Smile, Volume2, VolumeX } from 'lucide-react'
 import { toast } from 'sonner'
 import { Cheer, useGameStore } from '../store/gameStore'
-import { REACTIONS, playUrl, watchUrl } from '../net/protocol'
+import { playUrl, watchUrl } from '../net/protocol'
 import { describeEvent } from '../lib/events'
 import {
   GameEvent,
@@ -20,8 +20,9 @@ import { sortHand } from '../lib/hand'
 import { copyText } from '../lib/share'
 import { useCountdown, useOnChange } from '../lib/hooks'
 import { playSound, vibrate } from '../lib/sound'
-import { reportMatchWin } from '../native/playGames'
+import { recordMatchResult, recordRoundWin } from '../lib/stats'
 import { Avatar } from './Avatar'
+import { ReactionPicker } from './ReactionPicker'
 import { ShapeIcon } from './cards/shapes'
 import { Announcement, Announcer } from './game/Announcer'
 import { OpponentSeat } from './game/OpponentSeat'
@@ -177,15 +178,20 @@ function Table({ view }: { view: GameView }) {
           break
         case 'roundOver':
           playSound(mine(event.result.winnerId) ? 'win' : 'lose')
-          if (mine(event.result.winnerId)) celebrate()
-          break
-        case 'matchOver':
-          if (mine(event.winnerId)) {
-            celebrate(true)
-            playSound('win')
-            reportMatchWin()
+          if (mine(event.result.winnerId)) {
+            celebrate()
+            recordRoundWin()
           }
           break
+        case 'matchOver': {
+          const isWinner = mine(event.winnerId)
+          if (isWinner) {
+            celebrate(true)
+            playSound('win')
+          }
+          recordMatchResult({ won: isWinner })
+          break
+        }
       }
     }
   }, [lastBatch, nameOf, announce, view.myId])
@@ -448,39 +454,30 @@ function Table({ view }: { view: GameView }) {
             )}
           </div>
 
-          <div className="flex items-center gap-1">
+          <div className="relative flex items-center gap-1">
             <button className="btn-icon" onClick={cycleHandSort} aria-label={`Sort hand by ${handSort}`} title={`Sort: ${handSort}`}>
               <ArrowDownUp size={16} />
             </button>
-            <button className="btn-icon" onClick={() => setShowReactions((v) => !v)} aria-label="Send a reaction">
+            <button
+              className={`btn-icon ${showReactions ? 'bg-table-800 text-marigold' : ''}`}
+              onClick={() => setShowReactions((v) => !v)}
+              aria-label="Send a reaction"
+            >
               <Smile size={17} />
             </button>
+
+            <AnimatePresence>
+              {showReactions && (
+                <div className="absolute bottom-full right-0 mb-2 z-40">
+                  <ReactionPicker
+                    onSelect={(emoji) => cheer(emoji)}
+                    onClose={() => setShowReactions(false)}
+                  />
+                </div>
+              )}
+            </AnimatePresence>
           </div>
         </div>
-
-        <AnimatePresence>
-          {showReactions && (
-            <motion.div
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: 8 }}
-              className="mt-1 flex justify-end gap-1"
-            >
-              {REACTIONS.map((emoji) => (
-                <button
-                  key={emoji}
-                  className="rounded-lg bg-table-800/80 px-2 py-1 text-lg"
-                  onClick={() => {
-                    cheer(emoji)
-                    setShowReactions(false)
-                  }}
-                >
-                  {emoji}
-                </button>
-              ))}
-            </motion.div>
-          )}
-        </AnimatePresence>
 
         <AnimatePresence>
           {shapeFor ? (

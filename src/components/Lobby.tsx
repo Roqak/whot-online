@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import QRCode from 'qrcode'
-import { Check, Copy, Crown, Eye, LogOut, Play, QrCode, Share2, UserMinus, UserPlus, WifiOff } from 'lucide-react'
+import { Check, Copy, Crown, Eye, LogOut, Play, QrCode, Share2, Trophy, UserMinus, UserPlus, WifiOff } from 'lucide-react'
 import { toast } from 'sonner'
 import { useGameStore } from '../store/gameStore'
 import { playUrl, watchUrl } from '../net/protocol'
@@ -9,6 +9,7 @@ import { copyText, shareOrCopy } from '../lib/share'
 import { MAX_PLAYERS, MIN_PLAYERS } from '../engine/gameEngine'
 import { BotLevel, PICK_DEFENCE_LABELS, SETTING_LIMITS } from '../types/game'
 import { Avatar } from './Avatar'
+import { LeaderboardModal } from './LeaderboardModal'
 
 const BOT_LEVELS: { value: BotLevel; label: string }[] = [
   { value: 'easy', label: 'Easy' },
@@ -32,6 +33,7 @@ export default function Lobby() {
   const [showQr, setShowQr] = useState(false)
   const [qr, setQr] = useState<string | null>(null)
   const [showBotMenu, setShowBotMenu] = useState(false)
+  const [showLeaderboard, setShowLeaderboard] = useState(false)
 
   const roomUrl = lobby ? playUrl(lobby.code) : ''
 
@@ -79,7 +81,14 @@ export default function Lobby() {
           {lobby.members.find((m) => m.id === lobby.hostId)?.name}
           <span className="text-fg-faint">’s table</span>
         </p>
-        <span className="w-10" />
+        <button
+          className="btn-icon text-marigold"
+          onClick={() => setShowLeaderboard(true)}
+          aria-label="Leaderboard & Stats"
+          title="Leaderboard & Stats"
+        >
+          <Trophy size={18} />
+        </button>
       </header>
 
       <section className={`px-4 ${isLocal ? 'hidden' : ''}`}>
@@ -301,6 +310,12 @@ export default function Lobby() {
           </p>
         )}
       </footer>
+
+      <LeaderboardModal
+        isOpen={showLeaderboard}
+        onClose={() => setShowLeaderboard(false)}
+        currentUserName={me?.name}
+      />
     </div>
   )
 }

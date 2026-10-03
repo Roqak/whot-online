@@ -1,7 +1,9 @@
+import { useState } from 'react'
 import { motion } from 'framer-motion'
 import { Trophy } from 'lucide-react'
 import type { GameView } from '../../types/game'
 import { Avatar } from '../Avatar'
+import { LeaderboardModal } from '../LeaderboardModal'
 import { WhotCard } from '../cards/WhotCard'
 
 interface RoundOverlayProps {
@@ -20,6 +22,7 @@ export function RoundOverlay({ view, isHost, secondsLeft, onNextRound, onBackToL
   const name = (id: string) => view.players.find((p) => p.id === id)?.name ?? 'Someone'
   const winnerId = matchOver ? (championId ?? result?.winnerId) : result?.winnerId
   const iWon = winnerId === view.myId
+  const [showLeaderboard, setShowLeaderboard] = useState(false)
 
   return (
     <motion.div
@@ -102,6 +105,14 @@ export function RoundOverlay({ view, isHost, secondsLeft, onNextRound, onBackToL
               <button className="btn-primary flex-1" onClick={isHost ? onBackToLobby : onLeave}>
                 {isHost ? 'Play again' : 'Leave table'}
               </button>
+              <button
+                className="btn-ghost"
+                onClick={() => setShowLeaderboard(true)}
+                title="View leaderboard & stats"
+                aria-label="View leaderboard"
+              >
+                <Trophy size={16} />
+              </button>
               {isHost && (
                 <button className="btn-ghost" onClick={onLeave}>
                   Leave
@@ -121,6 +132,12 @@ export function RoundOverlay({ view, isHost, secondsLeft, onNextRound, onBackToL
         {!matchOver && !isHost && (
           <p className="mt-2 text-center text-xs text-fg-faint">The host can start it sooner</p>
         )}
+
+        <LeaderboardModal
+          isOpen={showLeaderboard}
+          onClose={() => setShowLeaderboard(false)}
+          currentUserName={view.players.find((p) => p.id === view.myId)?.name}
+        />
       </motion.div>
     </motion.div>
   )
