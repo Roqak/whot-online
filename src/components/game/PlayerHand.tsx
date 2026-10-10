@@ -101,7 +101,7 @@ export function PlayerHand({ cards, playableIds, selectedId, shakeId, interactiv
               transition={{ duration: 0.32 }}
               className={`block w-full cursor-pointer touch-none rounded-[7%] shadow-card transition-shadow ${
                 selected ? 'shadow-card-lift ring-2 ring-marigold' : ''
-              } ${interactive && playable ? 'ring-1 ring-marigold/40' : ''}`}
+              } ${interactive && playable ? 'ring-2 ring-marigold/70 shadow-[0_0_10px_rgba(242,193,78,0.35)]' : ''}`}
             >
               <WhotCard card={card} muted={interactive && !playable} />
             </motion.button>

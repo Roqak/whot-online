@@ -80,10 +80,22 @@ function Table({ view }: { view: GameView }) {
     setShowRules(true)
   }
 
+  const [specialAlert, setSpecialAlert] = useState<{ title: string; subtitle?: string; tone?: 'good' | 'bad' | 'gold' } | null>(null)
+  const alertTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const triggerSpecialAlert = useCallback((title: string, subtitle?: string, tone: 'good' | 'bad' | 'gold' = 'gold') => {
+    if (alertTimerRef.current) clearTimeout(alertTimerRef.current)
+    setSpecialAlert({ title, subtitle, tone })
+    alertTimerRef.current = setTimeout(() => setSpecialAlert(null), 1400)
+  }, [])
+
   // Tell CrazyGames gameplay started/resumed/stopped
   useEffect(() => {
     crazyGameplayStart()
-    return () => crazyGameplayStop()
+    return () => {
+      crazyGameplayStop()
+      if (alertTimerRef.current) clearTimeout(alertTimerRef.current)
+    }
   }, [])
 
   useEffect(() => {
@@ -169,6 +181,7 @@ function Table({ view }: { view: GameView }) {
   useEffect(() => {
     if (!lastBatch) return
     const mine = (id: string) => id === view.myId
+    const who = (id: string) => (mine(id) ? 'You' : nameOf(id))
     for (const event of lastBatch.events as GameEvent[]) {
       const line = describeEvent(event, { nameOf, myId: view.myId })
       if (line) announce(line.text, line.tone)
@@ -176,14 +189,36 @@ function Table({ view }: { view: GameView }) {
         case 'played':
           playSound(isSpecial(event.card) ? 'special' : 'play')
           break
+        case 'holdOn':
+          triggerSpecialAlert('HOLD ON!', `${mine(event.playerId) ? 'You play' : `${nameOf(event.playerId)} plays`} again`, 'gold')
+          break
+        case 'suspended':
+          triggerSpecialAlert(
+            'SUSPENDED!',
+            `${mine(event.targetId) ? 'Your turn is skipped!' : `${nameOf(event.targetId)} is skipped!`}`,
+            mine(event.targetId) ? 'bad' : 'good',
+          )
+          break
         case 'pick':
           playSound('pick')
+          triggerSpecialAlert(
+            `PICK ${event.amount}!`,
+            `${mine(event.targetId) ? `You pick ${event.amount} cards` : `${nameOf(event.targetId)} picks ${event.amount}`}`,
+            mine(event.targetId) ? 'bad' : 'good',
+          )
+          break
+        case 'generalMarket':
+          triggerSpecialAlert('GENERAL MARKET!', 'Everyone picks 1 card!', 'gold')
+          break
+        case 'shapeRequested':
+          triggerSpecialAlert(`${SHAPE_NAMES[event.shape].toUpperCase()} ASKED!`, `${who(event.playerId)} called ${SHAPE_NAMES[event.shape]}`, 'gold')
           break
         case 'drew':
           playSound('draw')
           break
         case 'lastCard':
           playSound('lastCard')
+          triggerSpecialAlert('LAST CARD!', `${who(event.playerId)} has 1 card left!`, 'good')
           if (!mine(event.playerId)) vibrate(20)
           break
         case 'caught':
@@ -214,7 +249,7 @@ function Table({ view }: { view: GameView }) {
         }
       }
     }
-  }, [lastBatch, nameOf, announce, view.myId])
+  }, [lastBatch, nameOf, announce, view.myId, triggerSpecialAlert])
 
   useOnChange(view.turnId, () => {
     setSelectedId(null)
@@ -405,6 +440,8 @@ function Table({ view }: { view: GameView }) {
             entryOffset={entryOffset}
             cardWidth={pileWidth}
           />
+
+          <SpecialBanner alert={specialAlert} />
 
           <TurnBanner
             mine={isMyTurn}
@@ -647,3 +684,38 @@ function celebrate(big = false) {
     disableForReducedMotion: true,
   })
 }
+
+function SpecialBanner({
+  alert,
+}: {
+  alert: { title: string; subtitle?: string; tone?: 'good' | 'bad' | 'gold' } | null
+}) {
+  return (
+    <div className="pointer-events-none absolute inset-x-0 top-1/2 z-40 flex -translate-y-1/2 justify-center px-4">
+      <AnimatePresence>
+        {alert && (
+          <motion.div
+            key={alert.title + (alert.subtitle ?? '')}
+            initial={{ scale: 0.6, opacity: 0, y: 15 }}
+            animate={{ scale: 1, opacity: 1, y: 0 }}
+            exit={{ scale: 0.85, opacity: 0, y: -20 }}
+            transition={{ type: 'spring', stiffness: 500, damping: 28 }}
+            className={`flex flex-col items-center rounded-2xl border px-6 py-3 shadow-2xl backdrop-blur-sm ${
+              alert.tone === 'bad'
+                ? 'border-ember/80 bg-ember text-table-950'
+                : alert.tone === 'good'
+                  ? 'border-leaf/80 bg-leaf text-table-950'
+                  : 'border-marigold/80 bg-marigold text-table-950'
+            }`}
+          >
+            <span className="font-display text-2xl font-black uppercase tracking-wider drop-shadow-sm">
+              {alert.title}
+            </span>
+            {alert.subtitle && <span className="mt-0.5 text-xs font-bold opacity-90">{alert.subtitle}</span>}
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  )
+}
+

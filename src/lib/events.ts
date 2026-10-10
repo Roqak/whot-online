@@ -25,9 +25,9 @@ export function describeEvent(event: GameEvent, { nameOf, myId, verbose }: Optio
     case 'played':
       return verbose ? { text: `${who(event.playerId)} played ${cardLabel(event.card)}`, tone: 'neutral' } : null
     case 'shapeRequested':
-      return { text: `${who(event.playerId)} asks for ${SHAPE_NAMES[event.shape]}`, tone: 'neutral' }
+      return { text: `${who(event.playerId)} named ${SHAPE_NAMES[event.shape]}`, tone: 'neutral' }
     case 'holdOn':
-      return { text: `${who(event.playerId)} holds on`, tone: 'neutral' }
+      return { text: `${who(event.playerId)} ${mine(event.playerId) ? 'hold' : 'holds'} on`, tone: 'neutral' }
     case 'suspended':
       return { text: `${mine(event.targetId) ? 'You are' : `${nameOf(event.targetId)} is`} suspended`, tone: 'bad' }
     case 'pick':
@@ -45,7 +45,7 @@ export function describeEvent(event: GameEvent, { nameOf, myId, verbose }: Optio
       return { text: `${who(event.playerId)}: last card!`, tone: 'good' }
     case 'caught':
       return {
-        text: `${who(event.byId)} caught ${mine(event.targetId) ? 'you' : nameOf(event.targetId)}`,
+        text: `${who(event.byId)} ${mine(event.byId) ? 'caught' : 'catches'} ${mine(event.targetId) ? 'you' : nameOf(event.targetId)}`,
         tone: mine(event.targetId) ? 'bad' : 'good',
       }
     case 'reshuffled':
@@ -55,9 +55,9 @@ export function describeEvent(event: GameEvent, { nameOf, myId, verbose }: Optio
     case 'roundStarted':
       return { text: `Round ${event.round}`, tone: 'neutral' }
     case 'roundOver':
-      return { text: `${who(event.result.winnerId)} checks up`, tone: mine(event.result.winnerId) ? 'good' : 'neutral' }
+      return { text: `${who(event.result.winnerId)} ${mine(event.result.winnerId) ? 'check' : 'checks'} up`, tone: mine(event.result.winnerId) ? 'good' : 'neutral' }
     case 'matchOver':
-      return { text: `${who(event.winnerId)} wins the match`, tone: mine(event.winnerId) ? 'good' : 'neutral' }
+      return { text: `${who(event.winnerId)} ${mine(event.winnerId) ? 'win' : 'wins'} the match`, tone: mine(event.winnerId) ? 'good' : 'neutral' }
     default:
       return null
   }
