@@ -21,6 +21,7 @@ import { copyText } from '../lib/share'
 import { useCountdown, useOnChange } from '../lib/hooks'
 import { playSound, vibrate } from '../lib/sound'
 import { recordMatchResult, recordRoundWin } from '../lib/stats'
+import { crazyGameplayStart, crazyGameplayStop, crazyHappyTime, isCrazyGames } from '../lib/crazygames'
 import { Avatar } from './Avatar'
 import { ReactionPicker } from './ReactionPicker'
 import { ShapeIcon } from './cards/shapes'
@@ -78,9 +79,26 @@ function Table({ view }: { view: GameView }) {
     }
     setShowRules(true)
   }
-  // First game ever: open the rules once instead of making a new player find
-  // the help icon themselves. Never shown again after that.
+
+  // Tell CrazyGames gameplay started/resumed/stopped
   useEffect(() => {
+    crazyGameplayStart()
+    return () => crazyGameplayStop()
+  }, [])
+
+  useEffect(() => {
+    if (paused) {
+      crazyGameplayStop()
+    } else {
+      crazyGameplayStart()
+    }
+  }, [paused])
+
+  // First game ever: open the rules once instead of making a new player find
+  // the help icon themselves. Never shown again after that. Skipped on CrazyGames
+  // to avoid blocking immediate gameplay on launch.
+  useEffect(() => {
+    if (isCrazyGames) return
     if (window.localStorage.getItem('whot:seenRules')) return
     window.localStorage.setItem('whot:seenRules', '1')
     openRules()
@@ -180,6 +198,7 @@ function Table({ view }: { view: GameView }) {
           playSound(mine(event.result.winnerId) ? 'win' : 'lose')
           if (mine(event.result.winnerId)) {
             celebrate()
+            crazyHappyTime()
             recordRoundWin()
           }
           break
@@ -187,6 +206,7 @@ function Table({ view }: { view: GameView }) {
           const isWinner = mine(event.winnerId)
           if (isWinner) {
             celebrate(true)
+            crazyHappyTime()
             playSound('win')
           }
           recordMatchResult({ won: isWinner })

@@ -9,6 +9,7 @@ import { ConnectionBanner } from './components/ConnectionBanner'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import { useGameStore } from './store/gameStore'
 import { unlockAudio } from './lib/sound'
+import { initCrazyGames, registerCrazyGamesProfileHandler } from './lib/crazygames'
 
 export default function App() {
   const game = useGameStore((s) => s.game)
@@ -25,6 +26,13 @@ export default function App() {
       window.removeEventListener('pointerdown', unlock)
       window.removeEventListener('keydown', unlock)
     }
+  }, [])
+
+  useEffect(() => {
+    registerCrazyGamesProfileHandler((name) => {
+      useGameStore.getState().setProfile({ name })
+    })
+    initCrazyGames()
   }, [])
 
   const screen = watching ? 'watch' : game ? 'game' : lobby ? 'lobby' : 'landing'

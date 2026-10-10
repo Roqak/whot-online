@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { Award, Flame, Loader2, RefreshCw, Star, Target, Trophy, Users, X } from 'lucide-react'
 import { fetchGlobalLeaderboard, getPlayerStats, type LeaderboardEntry, type PlayerStats } from '../lib/stats'
 import { hasNativeLeaderboard, showNativeLeaderboard } from '../native/playGames'
+import { isCrazyGames } from '../lib/crazygames'
 import { Avatar } from './Avatar'
 
 interface LeaderboardModalProps {
@@ -12,7 +13,7 @@ interface LeaderboardModalProps {
 }
 
 export function LeaderboardModal({ isOpen, onClose, currentUserName }: LeaderboardModalProps) {
-  const [tab, setTab] = useState<'global' | 'personal'>('global')
+  const [tab, setTab] = useState<'global' | 'personal'>(() => (isCrazyGames ? 'personal' : 'global'))
   const [entries, setEntries] = useState<LeaderboardEntry[]>([])
   const [loading, setLoading] = useState(false)
   const [stats, setStats] = useState<PlayerStats>(getPlayerStats)

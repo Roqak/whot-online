@@ -16,7 +16,8 @@
     "build:portal": "tsc --noEmit && VITE_LOCAL_ONLY=1 vite build --outDir dist-portal",
     "build:android": "npm run build:portal && rm -rf android/app/src/main/assets && mkdir -p android/app/src/main/assets && cp -r dist-portal/. android/app/src/main/assets && cd android && gradle assembleDebug && cp app/build/outputs/apk/debug/app-debug.apk LastCard-debug.apk",
     "build:android:release": "npm run build:portal && rm -rf android/app/src/main/assets && mkdir -p android/app/src/main/assets && cp -r dist-portal/. android/app/src/main/assets && cd android && gradle bundleRelease && cp app/build/outputs/bundle/release/app-release.aab LastCard-release.aab",
-    "build:tv:release": "cd android-tv && gradle bundleRelease && cp app/build/outputs/bundle/release/app-release.aab WhotTV-release.aab"
+    "build:tv:release": "cd android-tv && gradle bundleRelease && cp app/build/outputs/bundle/release/app-release.aab WhotTV-release.aab",
+    "build:crazygames": "tsc --noEmit && VITE_LOCAL_ONLY=1 VITE_CRAZYGAMES=1 vite build --outDir dist-crazygames && cd dist-crazygames && zip -r -q ../Lastcard-crazygames.zip . && cd .."
   },
   "dependencies": {
     "@react-three/drei": "^9.122.0",

@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import { toast } from 'sonner'
 import type { BotLevel, GameEvent, GameSettings, GameView, Suit } from '../types/game'
 import { AVATARS } from '../lib/avatars'
+import { isCrazyGames } from '../lib/crazygames'
 import { playSound, setSoundEnabled } from '../lib/sound'
 import { ConnectionStatus, GameConnection, socketUrl } from '../net/connection'
 import { LocalTable } from '../net/localTable'
@@ -63,6 +64,8 @@ interface StoreState {
   isLocal: boolean
   /** True for the whole session in a portal (app) build; unlike isLocal, never flips. */
   isPortal: boolean
+  /** True when running the dedicated CrazyGames build or ?crazygames=1. */
+  isCrazyGames: boolean
   /** Solo mode only: bot moves and turn/round timers are frozen. */
   paused: boolean
 
@@ -71,7 +74,7 @@ interface StoreState {
   goOnline: () => void
   /** Back to solo/offline; only meaningful for portal builds. */
   goLocal: () => void
-  createRoom: (opts?: { quickPlay?: boolean }) => void
+  createRoom: (opts?: { quickPlay?: boolean | { bots?: number } }) => void
   joinRoom: (code: string) => void
   watchRoom: (code: string) => void
   leaveRoom: () => void
@@ -134,7 +137,7 @@ function setUrl(path: string) {
 
 let connection: GameConnection | null = null
 let localTable: LocalTable | null = null
-let quickPlayPending = false
+let quickPlayConfig: { bots: number } | null = null
 let batchSeq = 0
 let cheerSeq = 0
 
@@ -189,10 +192,12 @@ export const useGameStore = create<StoreState>((set, get) => {
         storage.set(tab, 'whot:watching', null)
         set({ session, watching: null, busy: null, formError: null, inviteCode: null })
         setUrl(`/r/${msg.code}`)
-        if (quickPlayPending) {
-          quickPlayPending = false
-          send({ t: 'addBot', level: 'normal' })
-          send({ t: 'addBot', level: 'normal' })
+        if (quickPlayConfig) {
+          const count = quickPlayConfig.bots
+          quickPlayConfig = null
+          for (let i = 0; i < count; i++) {
+            send({ t: 'addBot', level: 'normal' })
+          }
           send({ t: 'start' })
         }
         break
@@ -230,7 +235,7 @@ export const useGameStore = create<StoreState>((set, get) => {
           break
         }
         if (get().busy) {
-          quickPlayPending = false
+          quickPlayConfig = null
           set({ busy: null, formError: msg.message, watching: null })
           break
         }
@@ -261,7 +266,12 @@ export const useGameStore = create<StoreState>((set, get) => {
   setSoundEnabled(soundOn)
 
   const randomAvatar = AVATARS[Math.floor(Math.random() * AVATARS.length)].id
-  const profile = storage.get(local, 'whot:profile', { name: '', avatar: randomAvatar })
+  const defaultGuestName = isCrazyGames ? `Player ${Math.floor(100 + Math.random() * 900)}` : ''
+  const storedProfile = storage.get(local, 'whot:profile', { name: defaultGuestName, avatar: randomAvatar })
+  const profile = {
+    ...storedProfile,
+    name: storedProfile.name || (isCrazyGames ? defaultGuestName : ''),
+  }
 
   if (watchCode) {
     queueMicrotask(() => send({ t: 'watch', code: watchCode, name: profile.name || 'Guest' }))
@@ -286,6 +296,7 @@ export const useGameStore = create<StoreState>((set, get) => {
     handSort: storage.get<HandSort>(local, 'whot:sort', 'shape'),
     isLocal: LOCAL_ONLY,
     isPortal: LOCAL_ONLY,
+    isCrazyGames,
     paused: false,
 
     setProfile: (patch) => {
@@ -298,8 +309,19 @@ export const useGameStore = create<StoreState>((set, get) => {
     goLocal: () => set({ isLocal: true }),
 
     createRoom: (opts) => {
-      quickPlayPending = !!opts?.quickPlay
-      set({ busy: opts?.quickPlay ? 'quick' : 'create', formError: null })
+      if (opts?.quickPlay) {
+        const bots =
+          typeof opts.quickPlay === 'object' && typeof opts.quickPlay.bots === 'number'
+            ? opts.quickPlay.bots
+            : isCrazyGames
+              ? 3
+              : 2
+        quickPlayConfig = { bots }
+        set({ busy: 'quick', formError: null })
+      } else {
+        quickPlayConfig = null
+        set({ busy: 'create', formError: null })
+      }
       send({ t: 'create', name: get().profile.name, avatar: get().profile.avatar })
     },
 

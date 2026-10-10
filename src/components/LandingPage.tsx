@@ -24,6 +24,7 @@ export default function LandingPage() {
   const inviteCode = useGameStore((s) => s.inviteCode)
   const isLocal = useGameStore((s) => s.isLocal)
   const isPortal = useGameStore((s) => s.isPortal)
+  const isCrazyGames = useGameStore((s) => s.isCrazyGames)
   const goOnline = useGameStore((s) => s.goOnline)
   const goLocal = useGameStore((s) => s.goLocal)
 
@@ -52,7 +53,11 @@ export default function LandingPage() {
           ))}
         </div>
         <h1 className="font-display text-5xl font-extrabold tracking-tight">Last Card</h1>
-        <p className="mt-1 text-sm text-fg-muted">Whot, the Nigerian card game, with your people, right now.</p>
+        <p className="mt-1 text-sm text-fg-muted">
+          {isCrazyGames
+            ? 'Match shapes & numbers, play special cards, check up to win.'
+            : 'Whot, the Nigerian card game, with your people, right now.'}
+        </p>
         <div className="mt-3 flex justify-center">
           <button
             onClick={() => setShowLeaderboard(true)}
@@ -132,6 +137,33 @@ export default function LandingPage() {
               Back
             </button>
           </div>
+        ) : isCrazyGames ? (
+          <>
+            <button
+              className="btn-primary w-full py-4 text-base"
+              disabled={busy !== null}
+              onClick={() => createRoom({ quickPlay: true })}
+            >
+              {busy === 'quick' ? <Loader2 size={18} className="animate-spin" /> : <Play size={18} />}
+              Play now (4 Players)
+            </button>
+            <div className="flex gap-2">
+              <button
+                className="btn-ghost flex-1"
+                disabled={busy !== null}
+                onClick={() => createRoom({ quickPlay: { bots: 1 } })}
+              >
+                ⚔️ 1v1 Duel
+              </button>
+              <button
+                className="btn-ghost flex-1"
+                disabled={busy !== null}
+                onClick={() => createRoom()}
+              >
+                <Bot size={17} /> Custom table
+              </button>
+            </div>
+          </>
         ) : isLocal ? (
           <>
             <button
@@ -179,11 +211,15 @@ export default function LandingPage() {
             )}
           </>
         )}
-        {!nameOk && <p className="text-center text-xs text-fg-faint">Add a name to get going</p>}
+        {!nameOk && !isCrazyGames && <p className="text-center text-xs text-fg-faint">Add a name to get going</p>}
       </div>
 
       <p className="text-center text-[11px] text-fg-faint">
-        {isLocal ? 'Play Whot against the house. Your table, your rules.' : 'No signup. 2 to 6 players. Share a link and deal.'}
+        {isCrazyGames
+          ? 'Fast Nigerian Whot against bots. Instant deal, check up first to win!'
+          : isLocal
+            ? 'Play Whot against the house. Your table, your rules.'
+            : 'No signup. 2 to 6 players. Share a link and deal.'}
       </p>
 
       <LeaderboardModal
