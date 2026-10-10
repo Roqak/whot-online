@@ -35,7 +35,7 @@ export function TableCenter({
   const drawLabel = pendingPick ? `Pick ${pendingPick.amount}` : 'Market'
 
   return (
-    <div className="flex items-center justify-center gap-5 sm:gap-8">
+    <div className="relative z-[1] flex items-center justify-center gap-5 sm:gap-8">
       <div className="flex flex-col items-center gap-2">
         <button
           onClick={onDraw}
@@ -68,7 +68,7 @@ export function TableCenter({
             </div>
           )}
         </button>
-        <span className={`chip px-2 py-0.5 text-[11px] ${pendingPick ? 'bg-ember text-table-950' : 'text-fg-faint'}`}>
+        <span className={`chip px-2 py-0.5 text-[11px] ${pendingPick ? 'bg-ember text-table-950' : 'text-fg-muted'}`}>
           {drawLabel} {!pendingPick && <span className="tabular-nums">· {marketCount}</span>}
         </span>
       </div>

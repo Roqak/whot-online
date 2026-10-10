@@ -68,7 +68,18 @@
   /* The table surface: lit in the middle, falling off at the edges. */
   .felt {
     background:
-      radial-gradient(120% 85% at 50% 38%, oklch(var(--table-800)) 0%, oklch(var(--table-900)) 45%, oklch(var(--table-950)) 100%);
+      radial-gradient(120% 85% at 50% 42%, oklch(var(--table-800)) 0%, oklch(var(--table-900)) 50%, oklch(var(--table-950)) 100%);
+  }
+
+  /* The oval table the pile sits on: indigo cloth with a dark lip, so the
+     middle of the screen reads as a place, not empty space. Static, so it
+     costs nothing on budget phones. */
+  .table-top {
+    background: radial-gradient(ellipse 70% 65% at 50% 45%, oklch(var(--table-700) / 0.75) 0%, oklch(var(--table-800) / 0.6) 55%, oklch(var(--table-900) / 0.55) 100%);
+    box-shadow:
+      inset 0 0 0 1.5px oklch(var(--table-600) / 0.55),
+      inset 0 0 48px oklch(var(--table-950) / 0.4),
+      0 20px 44px -14px oklch(var(--table-950) / 0.75);
   }
 
   .adire {

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import QRCode from 'qrcode'
-import { Check, Copy, Crown, Eye, LogOut, Play, QrCode, Share2, Trophy, UserMinus, UserPlus, WifiOff } from 'lucide-react'
+import { Check, Copy, Crown, Eye, Loader2, LogOut, Play, QrCode, Share2, Trophy, UserMinus, UserPlus, WifiOff } from 'lucide-react'
 import { toast } from 'sonner'
 import { useGameStore } from '../store/gameStore'
 import { playUrl, watchUrl } from '../net/protocol'
@@ -53,7 +53,6 @@ export default function Lobby() {
   const me = lobby.members.find((m) => m.id === session.playerId)
   const isHost = lobby.hostId === session.playerId
   const humansWaiting = lobby.members.filter((m) => !m.isBot && m.id !== lobby.hostId && !m.ready)
-  const canStart = lobby.members.length >= MIN_PLAYERS && humansWaiting.length === 0
 
   const copy = async () => {
     const ok = await copyText(roomUrl)
@@ -296,14 +295,26 @@ export default function Lobby() {
 
       <footer className="px-4 py-4 pad-safe-bottom">
         {isHost ? (
-          <button className="btn-primary w-full py-4 text-base" disabled={!canStart} onClick={startGame}>
-            <Play size={20} />
-            {lobby.members.length < MIN_PLAYERS
-              ? 'Add a bot or invite a friend'
-              : humansWaiting.length > 0
-                ? `Waiting for ${humansWaiting.map((m) => m.name).join(', ')}`
-                : 'Start game'}
-          </button>
+          lobby.members.length < MIN_PLAYERS ? (
+            // Alone at the table: the big button gets you a game instead of being a dead end.
+            <button className="btn-primary w-full py-4 text-base" onClick={() => addBot('normal')}>
+              <UserPlus size={20} />
+              Add a bot to start
+            </button>
+          ) : humansWaiting.length > 0 ? (
+            <button
+              className="btn w-full border border-dashed border-table-600 py-4 text-base text-fg-muted"
+              disabled
+            >
+              <Loader2 size={18} className="animate-spin" />
+              Waiting for {humansWaiting.map((m) => m.name).join(', ')}
+            </button>
+          ) : (
+            <button className="btn-primary w-full py-4 text-base" onClick={startGame}>
+              <Play size={20} />
+              Start game
+            </button>
+          )
         ) : (
           <p className="text-center text-sm text-fg-muted">
             {me?.ready ? 'Waiting for the host to start' : 'Tap ready when you are set'}
@@ -334,17 +345,17 @@ function Segmented<T extends string | number>({
   onChange: (value: T) => void
 }) {
   return (
-    <div className="flex items-center justify-between gap-3">
-      <span className="shrink-0 text-sm text-fg-muted">{label}</span>
-      <div className="flex flex-wrap justify-end gap-1" role="group" aria-label={label}>
+    <div>
+      <span className="text-sm text-fg-muted">{label}</span>
+      <div className="mt-1.5 flex gap-1 rounded-xl bg-table-950/60 p-1 ring-1 ring-table-600/40" role="group" aria-label={label}>
         {options.map((option) => (
           <button
             key={option.value}
             disabled={disabled}
             aria-pressed={option.value === value}
             onClick={() => onChange(option.value)}
-            className={`rounded-lg px-2.5 py-1.5 text-xs font-medium transition-colors ${
-              option.value === value ? 'bg-marigold text-table-950' : 'bg-table-800/70 text-fg-muted hover:bg-table-700'
+            className={`min-h-[38px] flex-auto whitespace-nowrap rounded-lg px-2 text-[13px] font-semibold transition-colors ${
+              option.value === value ? 'bg-marigold text-table-950 shadow-card' : 'text-fg-muted hover:bg-table-800 hover:text-fg'
             } ${disabled ? 'opacity-60' : ''}`}
           >
             {option.label}

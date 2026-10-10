@@ -41,7 +41,7 @@ export function OpponentSeat({ player, onTurn, fraction, urgent, catchable, onCa
       </div>
 
       <span
-        className={`mt-1 flex max-w-full items-center gap-1 truncate text-[11px] font-medium ${
+        className={`mt-1 flex max-w-full items-center gap-1 truncate text-xs font-semibold ${
           out ? 'text-fg-faint line-through' : onTurn ? 'text-marigold' : 'text-fg-muted'
         }`}
       >
@@ -74,7 +74,7 @@ export function OpponentSeat({ player, onTurn, fraction, urgent, catchable, onCa
               />
             ))}
           </div>
-          <span className="text-[11px] font-semibold tabular-nums text-fg">{player.handCount}</span>
+          <span className="text-xs font-bold tabular-nums text-fg">{player.handCount}</span>
         </div>
       )}
 

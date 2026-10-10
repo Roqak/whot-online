@@ -166,9 +166,11 @@ function Table({ view }: { view: GameView }) {
 
   const countdown = useCountdown(view.deadline, `${view.phase}-${view.turnId}`)
   // The hand gets a fixed slice of the screen, and cards are sized to fit inside it.
-  const handAreaHeight = Math.round(Math.min(208, Math.max(118, size.h * 0.24)))
-  const cardWidth = Math.round(Math.max(52, Math.min(96, size.w / 5.4, (handAreaHeight - 28) / 1.4)))
-  const pileWidth = Math.round(cardWidth * 1.3)
+  // Cards are the thing you read all game, so they get the room: wide enough to
+  // read in sunlight on a small phone, with headroom for the lift on your turn.
+  const handAreaHeight = Math.round(Math.min(228, Math.max(124, size.h * 0.27)))
+  const cardWidth = Math.round(Math.max(56, Math.min(108, size.w / 4.5, (handAreaHeight - 40) / 1.4)))
+  const pileWidth = Math.round(cardWidth * 1.2)
 
   const nameOf = useCallback(
     (id: string) => view.players.find((p) => p.id === id)?.name ?? 'Someone',
@@ -354,8 +356,8 @@ function Table({ view }: { view: GameView }) {
         )}
       </AnimatePresence>
 
-      <header className="z-20 flex shrink-0 items-center justify-between gap-2 px-3 py-2 pad-safe-top">
-        <div className="flex items-center gap-1">
+      <header className="z-20 flex shrink-0 items-center justify-between gap-1 px-2 py-2 pad-safe-top">
+        <div className="flex min-w-0 items-center gap-1">
           {confirmLeave ? (
             <div className="flex items-center gap-1 rounded-lg bg-table-900 p-1 text-xs">
               <span className="px-1 text-fg-muted">Leave game?</span>
@@ -385,24 +387,23 @@ function Table({ view }: { view: GameView }) {
           )}
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex shrink-0 items-center gap-0.5">
           {!isLocal && (
             <button
-              className={`chip px-2 text-[11px] ${watchers > 0 ? 'bg-ember/20 text-ember' : 'bg-table-800/70 text-fg-faint'}`}
+              className={`btn-icon gap-1 px-2 text-xs font-semibold ${watchers > 0 ? 'text-ember' : ''}`}
               onClick={copyWatchLink}
+              aria-label={watchers > 0 ? `${watchers} watching. Copy the watch link` : 'Copy a link for people to watch'}
               title="Copy a link for people to watch in 3D"
             >
-              <Eye size={13} />
-              {watchers > 0 ? watchers : 'Watch link'}
+              <Eye size={17} />
+              {watchers > 0 && <span className="tabular-nums">{watchers}</span>}
             </button>
           )}
-          <span className="chip whitespace-nowrap bg-table-800/70 px-2 text-[11px] text-fg-muted">
+          <span
+            className="chip whitespace-nowrap bg-table-800/70 px-2.5 text-xs font-semibold text-fg-muted"
+            title={view.settings.targetScore > 0 ? `Knocked out at ${view.settings.targetScore} points` : 'One round'}
+          >
             Round {view.round}
-            {view.settings.targetScore > 0 && (
-              <span className="text-fg-faint" title={`Knocked out at ${view.settings.targetScore} points`}>
-                · out {view.settings.targetScore}
-              </span>
-            )}
           </span>
           {isLocal && view.phase === 'playing' && (
             <button className="btn-icon" onClick={pauseGame} aria-label="Pause game">
@@ -440,8 +441,8 @@ function Table({ view }: { view: GameView }) {
         <div className="relative flex min-h-0 flex-1 flex-col items-center justify-center gap-3 px-3">
           <div
             aria-hidden="true"
-            className="pointer-events-none absolute inset-x-4 top-1/2 -translate-y-1/2 rounded-[50%] border border-fg/[0.06] bg-fg/[0.015]"
-            style={{ height: 'min(62%, 340px)' }}
+            className="table-top pointer-events-none absolute inset-x-3 top-[44%] -translate-y-1/2 rounded-[50%]"
+            style={{ height: 'min(66%, 360px)' }}
           />
           <TableCenter
             pile={pile}
@@ -603,7 +604,7 @@ function Table({ view }: { view: GameView }) {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="mt-2 text-center text-[11px] text-fg-faint"
+              className="mt-2 text-center text-xs font-medium text-fg-muted"
             >
               Tap {cardLabel(selectedCard)} again, or flick it up, to play
             </motion.p>
@@ -661,7 +662,7 @@ function TurnBanner({ mine, over, name, avatar, fraction, seconds, urgent, label
       initial={{ opacity: 0, y: 6 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.2 }}
-      className={`flex items-center gap-2 rounded-full py-1.5 pl-1.5 pr-3.5 ${
+      className={`relative z-[1] flex items-center gap-2 rounded-full py-1.5 pl-1.5 pr-3.5 ${
         mine ? 'bg-marigold text-table-950 shadow-card' : 'bg-table-900/85 text-fg-muted ring-1 ring-table-600/50'
       }`}
       aria-live="polite"
@@ -728,16 +729,17 @@ function SpecialBanner({
   alert: { title: string; subtitle?: string; tone?: 'good' | 'bad' | 'gold' } | null
 }) {
   return (
-    <div className="pointer-events-none absolute inset-x-0 top-1/2 z-40 flex -translate-y-1/2 justify-center px-4">
+    // Sits above the pile, never on it: the card that caused the alert stays in view.
+    <div className="pointer-events-none absolute inset-x-0 top-1 z-40 flex justify-center px-4">
       <AnimatePresence>
         {alert && (
           <motion.div
             key={alert.title + (alert.subtitle ?? '')}
-            initial={{ scale: 0.6, opacity: 0, y: 15 }}
+            initial={{ scale: 0.7, opacity: 0, y: 10 }}
             animate={{ scale: 1, opacity: 1, y: 0 }}
-            exit={{ scale: 0.85, opacity: 0, y: -20 }}
-            transition={{ type: 'spring', stiffness: 500, damping: 28 }}
-            className={`flex flex-col items-center rounded-2xl border px-6 py-3 shadow-2xl backdrop-blur-sm ${
+            exit={{ scale: 0.92, opacity: 0, y: -8 }}
+            transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
+            className={`flex flex-col items-center rounded-2xl border px-5 py-2 shadow-card-lift ${
               alert.tone === 'bad'
                 ? 'border-ember/80 bg-ember text-table-950'
                 : alert.tone === 'good'
@@ -745,7 +747,7 @@ function SpecialBanner({
                   : 'border-marigold/80 bg-marigold text-table-950'
             }`}
           >
-            <span className="font-display text-2xl font-black uppercase tracking-wider drop-shadow-sm">
+            <span className="font-display text-xl font-extrabold uppercase tracking-wide">
               {alert.title}
             </span>
             {alert.subtitle && <span className="mt-0.5 text-xs font-bold opacity-90">{alert.subtitle}</span>}
