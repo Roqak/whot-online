@@ -266,6 +266,15 @@ export const useGameStore = create<StoreState>((set, get) => {
   setSoundEnabled(soundOn)
 
   const randomAvatar = AVATARS[Math.floor(Math.random() * AVATARS.length)].id
+  /** Nobody should have to type a name before their first game: an empty one becomes a guest name they can change later. */
+  const ensureName = () => {
+    const name = get().profile.name.trim()
+    if (name) return name
+    const guest = `Player ${Math.floor(100 + Math.random() * 900)}`
+    get().setProfile({ name: guest })
+    return guest
+  }
+
   const defaultGuestName = isCrazyGames ? `Player ${Math.floor(100 + Math.random() * 900)}` : ''
   const storedProfile = storage.get(local, 'whot:profile', { name: defaultGuestName, avatar: randomAvatar })
   const profile = {
@@ -322,12 +331,12 @@ export const useGameStore = create<StoreState>((set, get) => {
         quickPlayConfig = null
         set({ busy: 'create', formError: null })
       }
-      send({ t: 'create', name: get().profile.name, avatar: get().profile.avatar })
+      send({ t: 'create', name: ensureName(), avatar: get().profile.avatar })
     },
 
     joinRoom: (code) => {
       set({ busy: 'join', formError: null })
-      send({ t: 'join', code: normalizeRoomCode(code), name: get().profile.name, avatar: get().profile.avatar })
+      send({ t: 'join', code: normalizeRoomCode(code), name: ensureName(), avatar: get().profile.avatar })
     },
 
     watchRoom: (code) => {

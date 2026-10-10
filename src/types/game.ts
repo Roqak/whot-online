@@ -242,3 +242,17 @@ export function canPlayCard(card: Card, ctx: PlayContext): boolean {
   if (!ctx.topCard || ctx.topCard.shape === 'whot') return true
   return card.shape === ctx.topCard.shape || card.number === ctx.topCard.number
 }
+
+/** Why a card can't be played right now, in words a new player understands. Null when it can. */
+export function playBlockedReason(card: Card, ctx: PlayContext): string | null {
+  if (canPlayCard(card, ctx)) return null
+  if (ctx.pendingPick) {
+    const { amount, number } = ctx.pendingPick
+    return ctx.pickDefence === 'none'
+      ? `You have to pick ${amount}. Tap the market`
+      : `Only a ${number} can block Pick ${amount}, or tap the market`
+  }
+  if (ctx.requestedShape) return `${SHAPE_NAMES[ctx.requestedShape]} was asked for. Play a ${SHAPE_NAMES[ctx.requestedShape]} or Whot`
+  const top = ctx.topCard!
+  return `Needs a ${SHAPE_NAMES[top.shape]} or a ${top.number}, or Whot`
+}

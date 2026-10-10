@@ -15,6 +15,7 @@ import {
   canPlayCard,
   cardLabel,
   isSpecial,
+  playBlockedReason,
 } from '../types/game'
 import { sortHand } from '../lib/hand'
 import { copyText } from '../lib/share'
@@ -67,6 +68,9 @@ function Table({ view }: { view: GameView }) {
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [shapeFor, setShapeFor] = useState<string | null>(null)
   const [shakeId, setShakeId] = useState<string | null>(null)
+  // Why the card just tapped can't be played; clears itself after a moment.
+  const [blockedHint, setBlockedHint] = useState<string | null>(null)
+  const blockedHintTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [showRules, setShowRules] = useState(false)
   // Tracks whether opening rules is what caused the current pause, so
   // closing it only resumes a pause it caused itself — not one the player
@@ -95,6 +99,7 @@ function Table({ view }: { view: GameView }) {
     return () => {
       crazyGameplayStop()
       if (alertTimerRef.current) clearTimeout(alertTimerRef.current)
+      if (blockedHintTimer.current) clearTimeout(blockedHintTimer.current)
     }
   }, [])
 
@@ -144,16 +149,20 @@ function Table({ view }: { view: GameView }) {
     return optimistic ? [...view.pile, optimistic] : view.pile
   }, [view.pile, view.myHand, pendingCardId])
 
-  const playableIds = useMemo(() => {
-    if (!interactive) return new Set<string>()
-    const ctx = {
+  const playContext = useMemo(
+    () => ({
       topCard: pile[pile.length - 1] ?? null,
       requestedShape: view.requestedShape,
       pendingPick: view.pendingPick,
       pickDefence: view.settings.pickDefence,
-    }
-    return new Set(hand.filter((c) => canPlayCard(c, ctx)).map((c) => c.id))
-  }, [interactive, hand, pile, view.requestedShape, view.pendingPick, view.settings.pickDefence])
+    }),
+    [pile, view.requestedShape, view.pendingPick, view.settings.pickDefence],
+  )
+
+  const playableIds = useMemo(() => {
+    if (!interactive) return new Set<string>()
+    return new Set(hand.filter((c) => canPlayCard(c, playContext)).map((c) => c.id))
+  }, [interactive, hand, playContext])
 
   const countdown = useCountdown(view.deadline, `${view.phase}-${view.turnId}`)
   // The hand gets a fixed slice of the screen, and cards are sized to fit inside it.
@@ -254,27 +263,35 @@ function Table({ view }: { view: GameView }) {
   useOnChange(view.turnId, () => {
     setSelectedId(null)
     setShapeFor(null)
+    setBlockedHint(null)
     if (view.turnPlayerId === view.myId && view.phase === 'playing') {
       playSound('turn')
       vibrate(25)
     }
   })
 
+  // First tap lifts a card, a second tap (or a flick up) plays it, so a stray
+  // tap never costs a card. Tapping a card you can't play says why.
   const activate = (cardId: string) => {
     if (!interactive) return
+    const card = hand.find((c) => c.id === cardId)
+    if (!card) return
     if (!playableIds.has(cardId)) {
       playSound('error')
       setShakeId(cardId)
       setTimeout(() => setShakeId(null), 400)
+      if (blockedHintTimer.current) clearTimeout(blockedHintTimer.current)
+      setBlockedHint(playBlockedReason(card, playContext))
+      blockedHintTimer.current = setTimeout(() => setBlockedHint(null), 2600)
       return
     }
+    setBlockedHint(null)
     if (selectedId !== cardId) {
       setSelectedId(cardId)
+      setShapeFor(null)
       playSound('tap')
       return
     }
-    const card = hand.find((c) => c.id === cardId)
-    if (!card) return
     if (card.shape === 'whot') {
       setShapeFor(cardId)
       return
@@ -456,7 +473,9 @@ function Table({ view }: { view: GameView }) {
                 ? `Defend or pick ${view.pendingPick.amount}`
                 : isMyTurn && nudgeMarket
                   ? 'No match: go to market'
-                  : null
+                  : isMyTurn && view.requestedShape
+                    ? `Play a ${SHAPE_NAMES[view.requestedShape]} or Whot`
+                    : null
             }
           />
         </div>
@@ -556,10 +575,28 @@ function Table({ view }: { view: GameView }) {
                   <ShapeIcon shape={shape} size={20} />
                 </button>
               ))}
-              <button className="btn-icon" onClick={() => setShapeFor(null)} aria-label="Cancel">
+              <button
+                className="btn-icon"
+                onClick={() => {
+                  setShapeFor(null)
+                  setSelectedId(null)
+                }}
+                aria-label="Cancel"
+              >
                 ✕
               </button>
             </motion.div>
+          ) : blockedHint ? (
+            <motion.p
+              key={blockedHint}
+              role="status"
+              initial={{ opacity: 0, y: 4 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0 }}
+              className="mx-auto mt-2 w-fit rounded-full bg-table-900/90 px-3 py-1 text-center text-xs font-medium text-fg ring-1 ring-table-600/60"
+            >
+              {blockedHint}
+            </motion.p>
           ) : selectedCard ? (
             <motion.p
               key="hint"

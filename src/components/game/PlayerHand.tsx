@@ -17,7 +17,7 @@ interface PlayerHandProps {
 
 const MAX_TILT = 4
 
-/** The player's fanned hand. Tap to lift a card, tap again (or flick up) to play it. */
+/** The player's fanned hand. Tap to lift a card, tap again (or flick up) to play it; playable cards ride higher on your turn. */
 export function PlayerHand({ cards, playableIds, selectedId, shakeId, interactive, cardWidth, onActivate }: PlayerHandProps) {
   const [ref, width] = useWidth<HTMLDivElement>()
   const buttons = useRef<(HTMLButtonElement | null)[]>([])
@@ -60,8 +60,9 @@ export function PlayerHand({ cards, playableIds, selectedId, shakeId, interactiv
             initial={{ x: startX + i * spacing, y: 60, opacity: 0, rotate: tilt }}
             animate={{
               x: startX + i * spacing,
-              // Outer cards ride higher, like a fan held from below.
-              y: -arc - (selected ? 26 : 0),
+              // Outer cards ride higher, like a fan held from below; on your turn,
+              // playable cards stand up out of the fan so the eye finds them first.
+              y: -arc - (selected ? 26 : interactive && playable ? 18 : 0),
               rotate: selected ? 0 : tilt,
               opacity: 1,
               scale: selected ? 1.06 : 1,
@@ -78,7 +79,6 @@ export function PlayerHand({ cards, playableIds, selectedId, shakeId, interactiv
               aria-pressed={selected}
               onFocus={() => setFocusIndex(i)}
               onClick={() => onActivate(card.id)}
-              onDoubleClick={() => onActivate(card.id)}
               onKeyDown={(e) => {
                 if (e.key === 'ArrowRight') {
                   e.preventDefault()
@@ -95,7 +95,7 @@ export function PlayerHand({ cards, playableIds, selectedId, shakeId, interactiv
               onDragEnd={(_, info) => {
                 if (info.offset.y < -70) onActivate(card.id)
               }}
-              whileHover={interactive && playable ? { y: -10 } : undefined}
+              whileHover={interactive && playable ? { y: -6 } : undefined}
               whileTap={{ scale: 0.97 }}
               animate={shakeId === card.id ? { x: [0, -6, 6, -4, 0] } : {}}
               transition={{ duration: 0.32 }}

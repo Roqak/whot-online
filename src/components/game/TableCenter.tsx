@@ -110,13 +110,13 @@ export function TableCenter({
           <motion.span
             initial={{ y: -4, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
-            className="chip bg-paper py-0.5 text-[11px] font-semibold text-ink"
+            className="chip bg-paper px-2.5 py-1 text-xs font-bold text-ink shadow-card"
           >
-            <ShapeIcon shape={requestedShape} size={13} />
+            <ShapeIcon shape={requestedShape} size={15} />
             {SHAPE_NAMES[requestedShape]} asked
           </motion.span>
         ) : (
-          <span className="h-[22px]" />
+          <span className="h-[26px]" />
         )}
       </div>
     </div>

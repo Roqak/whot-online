@@ -32,7 +32,6 @@ export default function LandingPage() {
   const [showJoin, setShowJoin] = useState(!!inviteCode)
   const [showLeaderboard, setShowLeaderboard] = useState(false)
 
-  const nameOk = profile.name.trim().length > 0
   const codeOk = code.trim().length >= 4
 
   return (
@@ -77,7 +76,7 @@ export default function LandingPage() {
         <input
           id="nickname"
           className="field mt-1.5"
-          placeholder="e.g. Ada"
+          placeholder="e.g. Ada (optional)"
           value={profile.name}
           maxLength={MAX_NAME_LENGTH}
           autoComplete="nickname"
@@ -127,7 +126,7 @@ export default function LandingPage() {
             />
             <button
               className="btn-primary mt-3 w-full py-3.5"
-              disabled={!nameOk || !codeOk || busy !== null}
+              disabled={!codeOk || busy !== null}
               onClick={() => joinRoom(code)}
             >
               {busy === 'join' ? <Loader2 size={18} className="animate-spin" /> : <Users size={18} />}
@@ -168,13 +167,13 @@ export default function LandingPage() {
           <>
             <button
               className="btn-primary w-full py-4 text-base"
-              disabled={!nameOk || busy !== null}
+              disabled={busy !== null}
               onClick={() => createRoom({ quickPlay: true })}
             >
               {busy === 'quick' ? <Loader2 size={18} className="animate-spin" /> : <Play size={18} />}
               Play now
             </button>
-            <button className="btn-ghost w-full" disabled={!nameOk || busy !== null} onClick={() => createRoom()}>
+            <button className="btn-ghost w-full" disabled={busy !== null} onClick={() => createRoom()}>
               <Bot size={17} /> Set up the table
             </button>
             <button className="w-full py-2 text-sm text-fg-faint hover:text-fg" onClick={goOnline}>
@@ -185,19 +184,19 @@ export default function LandingPage() {
           <>
             <button
               className="btn-primary w-full py-4 text-base"
-              disabled={!nameOk || busy !== null}
+              disabled={busy !== null}
               onClick={() => createRoom()}
             >
               {busy === 'create' ? <Loader2 size={18} className="animate-spin" /> : <Play size={18} />}
               Create a table
             </button>
             <div className="flex gap-2">
-              <button className="btn-ghost flex-1" disabled={!nameOk || busy !== null} onClick={() => setShowJoin(true)}>
+              <button className="btn-ghost flex-1" disabled={busy !== null} onClick={() => setShowJoin(true)}>
                 <Users size={17} /> Join code
               </button>
               <button
                 className="btn-ghost flex-1"
-                disabled={!nameOk || busy !== null}
+                disabled={busy !== null}
                 onClick={() => createRoom({ quickPlay: true })}
               >
                 {busy === 'quick' ? <Loader2 size={17} className="animate-spin" /> : <Bot size={17} />}
@@ -211,7 +210,6 @@ export default function LandingPage() {
             )}
           </>
         )}
-        {!nameOk && !isCrazyGames && <p className="text-center text-xs text-fg-faint">Add a name to get going</p>}
       </div>
 
       <p className="text-center text-[11px] text-fg-faint">
