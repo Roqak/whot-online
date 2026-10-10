@@ -3,7 +3,7 @@ import { AnimatePresence, motion } from 'framer-motion'
 import confetti from 'canvas-confetti'
 import { ArrowDownUp, Check, Copy, Eye, HelpCircle, LogOut, Pause, Smile, Volume2, VolumeX } from 'lucide-react'
 import { toast } from 'sonner'
-import { Cheer, useGameStore } from '../store/gameStore'
+import { Cheer, Said, useGameStore } from '../store/gameStore'
 import { playUrl, watchUrl } from '../net/protocol'
 import { describeEvent } from '../lib/events'
 import {
@@ -55,6 +55,8 @@ function Table({ view }: { view: GameView }) {
   const soundOn = useGameStore((s) => s.soundOn)
   const lastBatch = useGameStore((s) => s.lastBatch)
   const cheers = useGameStore((s) => s.cheers)
+  const said = useGameStore((s) => s.said)
+  const say = useGameStore((s) => s.say)
   const hostId = useGameStore((s) => s.lobby?.hostId)
   const lobbyMembers = useGameStore((s) => s.lobby?.members)
   const voice = useGameStore((s) => s.voice)
@@ -452,6 +454,7 @@ function Table({ view }: { view: GameView }) {
                   : null
               }
               onToggleMute={() => togglePeerMute(player.id)}
+              said={said.find((s) => s.playerId === player.id)?.text ?? null}
             />
           ))}
         </div>
@@ -500,6 +503,8 @@ function Table({ view }: { view: GameView }) {
         </div>
 
         <CheerBubbles cheers={cheers} />
+        {/* Your own lines, and spectators', rise from where you're sitting. */}
+        <SaidBubbles said={said.filter((s) => s.playerId === view.myId || s.spectator)} myId={view.myId} />
 
         <AnimatePresence>
           {view.phase !== 'playing' && (
@@ -572,6 +577,7 @@ function Table({ view }: { view: GameView }) {
                 <div className="absolute bottom-full right-0 mb-2 z-40">
                   <ReactionPicker
                     onSelect={(emoji) => cheer(emoji)}
+                    onSay={say}
                     onClose={() => setShowReactions(false)}
                   />
                 </div>
@@ -713,6 +719,28 @@ function TurnBanner({ mine, over, name, avatar, fraction, seconds, urgent, label
         </span>
       )}
     </motion.div>
+  )
+}
+
+function SaidBubbles({ said, myId }: { said: Said[]; myId: string }) {
+  return (
+    <div className="pointer-events-none absolute inset-x-0 bottom-3 z-20 flex flex-col items-center gap-1 px-4" role="status">
+      <AnimatePresence>
+        {said.map((s) => (
+          <motion.span
+            key={s.key}
+            initial={{ opacity: 0, y: 8, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -6 }}
+            transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+            className="max-w-[80%] rounded-xl bg-paper px-3 py-1.5 text-center text-sm font-semibold leading-tight text-table-950 shadow-card-lift"
+          >
+            {s.playerId !== myId && <span className="mr-1 text-ink-soft">{s.from}{s.spectator ? ' 👁' : ''}:</span>}
+            {s.text}
+          </motion.span>
+        ))}
+      </AnimatePresence>
+    </div>
   )
 }
 

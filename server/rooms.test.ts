@@ -359,3 +359,32 @@ describe('run it back (rematch)', () => {
     expect(host.last('lobby')!.lobby.members.every((m) => !m.rematch)).toBe(true)
   })
 })
+
+describe('quick chat', () => {
+  let manager: RoomManager
+  let t = 0
+  beforeEach(() => {
+    t = 0
+    manager = new RoomManager({ rng: seededRng(5), now: () => t })
+  })
+  afterEach(() => manager.dispose())
+  const send = (client: Client, msg: ClientMessage) => manager.handleMessage(client, msg)
+
+  it('broadcasts known phrases with who said them, and throttles spam', () => {
+    const host = new FakeClient()
+    send(host, { t: 'create', name: 'Ada', avatar: 'lion' })
+    const code = host.last('welcome')!.code
+    const guest = new FakeClient()
+    send(guest, { t: 'join', code, name: 'Bayo', avatar: 'fox' })
+
+    send(guest, { t: 'say', phrase: 'fast' })
+    expect(host.last('said')).toEqual({ t: 'said', from: 'Bayo', playerId: guest.last('welcome')!.playerId, phrase: 'fast', spectator: false })
+
+    const count = () => host.messages.filter((m) => m.t === 'said').length
+    send(guest, { t: 'say', phrase: 'nawa' })
+    expect(count()).toBe(1)
+    t += 1000
+    send(guest, { t: 'say', phrase: 'nawa' })
+    expect(count()).toBe(2)
+  })
+})

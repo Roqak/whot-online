@@ -1,18 +1,20 @@
 import { useEffect, useRef, useState } from 'react'
 import { motion } from 'framer-motion'
 import { X } from 'lucide-react'
-import { REACTION_CATEGORIES, REACTIONS, type Reaction } from '../net/protocol'
+import { PHRASES, REACTION_CATEGORIES, REACTIONS, type PhraseId, type Reaction } from '../net/protocol'
 
 interface ReactionPickerProps {
   onSelect: (emoji: Reaction) => void
+  /** Quick chat lines; the "Say" tab only appears when this is given. */
+  onSay?: (phrase: PhraseId) => void
   onClose: () => void
   className?: string
 }
 
-type TabId = 'all' | (typeof REACTION_CATEGORIES)[number]['id']
+type TabId = 'say' | 'all' | (typeof REACTION_CATEGORIES)[number]['id']
 
-export function ReactionPicker({ onSelect, onClose, className = '' }: ReactionPickerProps) {
-  const [activeTab, setActiveTab] = useState<TabId>('quick')
+export function ReactionPicker({ onSelect, onSay, onClose, className = '' }: ReactionPickerProps) {
+  const [activeTab, setActiveTab] = useState<TabId>(onSay ? 'say' : 'quick')
   const pickerRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -54,11 +56,22 @@ export function ReactionPicker({ onSelect, onClose, className = '' }: ReactionPi
       {/* Category Tabs & Close */}
       <div className="flex items-center justify-between border-b border-table-700/50 pb-2">
         <div className="flex gap-1 overflow-x-auto scrollbar-hide py-0.5">
+          {onSay && (
+            <button
+              onClick={() => setActiveTab('say')}
+              className={`shrink-0 whitespace-nowrap rounded-lg px-2 py-1 text-xs font-medium transition-colors ${
+                activeTab === 'say' ? 'bg-marigold text-table-950 font-bold shadow-sm' : 'text-fg-muted hover:bg-table-800 hover:text-fg'
+              }`}
+            >
+              <span className="mr-1">💬</span>
+              Say
+            </button>
+          )}
           {REACTION_CATEGORIES.map((cat) => (
             <button
               key={cat.id}
               onClick={() => setActiveTab(cat.id)}
-              className={`rounded-lg px-2 py-1 text-xs font-medium transition-colors ${
+              className={`shrink-0 whitespace-nowrap rounded-lg px-2 py-1 text-xs font-medium transition-colors ${
                 activeTab === cat.id
                   ? 'bg-marigold text-table-950 font-bold shadow-sm'
                   : 'text-fg-muted hover:bg-table-800 hover:text-fg'
@@ -71,7 +84,7 @@ export function ReactionPicker({ onSelect, onClose, className = '' }: ReactionPi
           ))}
           <button
             onClick={() => setActiveTab('all')}
-            className={`rounded-lg px-2 py-1 text-xs font-medium transition-colors ${
+            className={`shrink-0 whitespace-nowrap rounded-lg px-2 py-1 text-xs font-medium transition-colors ${
               activeTab === 'all'
                 ? 'bg-marigold text-table-950 font-bold shadow-sm'
                 : 'text-fg-muted hover:bg-table-800 hover:text-fg'
@@ -89,7 +102,22 @@ export function ReactionPicker({ onSelect, onClose, className = '' }: ReactionPi
         </button>
       </div>
 
-      {/* Emoji Grid */}
+      {activeTab === 'say' && onSay ? (
+        <div className="mt-2 grid max-h-56 grid-cols-2 gap-1 overflow-y-auto pr-0.5">
+          {PHRASES.map((phrase) => (
+            <button
+              key={phrase.id}
+              onClick={() => {
+                onSay(phrase.id)
+                onClose()
+              }}
+              className="min-h-[40px] rounded-xl bg-table-800/60 px-2.5 py-1.5 text-left text-[13px] font-medium leading-tight text-fg transition-colors hover:bg-table-700 active:scale-[0.98]"
+            >
+              {phrase.text}
+            </button>
+          ))}
+        </div>
+      ) : (
       <div className="mt-2 grid grid-cols-6 gap-1 max-h-48 overflow-y-auto pr-0.5 scrollbar-thin">
         {emojis.map((emoji) => (
           <button
@@ -105,6 +133,7 @@ export function ReactionPicker({ onSelect, onClose, className = '' }: ReactionPi
           </button>
         ))}
       </div>
+      )}
     </motion.div>
   )
 }

@@ -6,7 +6,7 @@ import { isCrazyGames } from '../lib/crazygames'
 import { playSound, setSoundEnabled } from '../lib/sound'
 import { ConnectionStatus, GameConnection, socketUrl } from '../net/connection'
 import { LocalTable } from '../net/localTable'
-import { ClientMessage, LobbyView, Reaction, ServerMessage, normalizeRoomCode } from '../net/protocol'
+import { ClientMessage, LobbyView, PhraseId, Reaction, ServerMessage, normalizeRoomCode, phraseText } from '../net/protocol'
 import { VoiceChat, voiceSupported } from '../net/voice'
 
 /**
@@ -44,6 +44,15 @@ export interface Cheer {
 
 export type HandSort = 'shape' | 'number' | 'none'
 
+/** A quick-chat line, shown as a bubble at the speaker's seat for a few seconds. */
+export interface Said {
+  key: number
+  playerId: string | null
+  from: string
+  text: string
+  spectator: boolean
+}
+
 export interface VoiceState {
   /** off: not in voice. joining: asking for the mic / waiting for the server. on: in voice. */
   status: 'off' | 'joining' | 'on'
@@ -66,6 +75,7 @@ interface StoreState {
   game: GameView | null
   lastBatch: EventBatch | null
   cheers: Cheer[]
+  said: Said[]
   /** Card sent to the server but not yet confirmed; shown as already played. */
   pendingCardId: string | null
   busy: 'create' | 'join' | 'quick' | 'watch' | null
@@ -108,6 +118,7 @@ interface StoreState {
   /** Match over: vote to deal the same table again (or take the vote back). */
   rematch: (on: boolean) => void
   cheer: (emoji: Reaction, targetId?: string) => void
+  say: (phrase: PhraseId) => void
   pauseGame: () => void
   resumeGame: () => void
   toggleSound: () => void
@@ -215,6 +226,7 @@ export const useGameStore = create<StoreState>((set, get) => {
       pendingCardId: null,
       busy: null,
       cheers: [],
+      said: [],
       // Back to the app's offline default once a room's left, so opting into
       // an online table is a fresh choice each time rather than sticky.
       isLocal: LOCAL_ONLY,
@@ -305,6 +317,15 @@ export const useGameStore = create<StoreState>((set, get) => {
         setTimeout(() => set((s) => ({ cheers: s.cheers.filter((c) => c.key !== cheer.key) })), 2600)
         break
       }
+      case 'said': {
+        const text = phraseText(msg.phrase)
+        if (!text) break
+        const said: Said = { key: ++cheerSeq, playerId: msg.playerId, from: msg.from, text, spectator: msg.spectator }
+        // One bubble per speaker: a new line replaces their last.
+        set((s) => ({ said: [...s.said.filter((x) => !(x.playerId && x.playerId === said.playerId)).slice(-4), said] }))
+        setTimeout(() => set((s) => ({ said: s.said.filter((x) => x.key !== said.key) })), 3200)
+        break
+      }
       case 'pong':
         break
     }
@@ -347,6 +368,7 @@ export const useGameStore = create<StoreState>((set, get) => {
     game: null,
     lastBatch: null,
     cheers: [],
+    said: [],
     pendingCardId: null,
     busy: watchCode ? 'watch' : null,
     formError: null,
@@ -436,6 +458,7 @@ export const useGameStore = create<StoreState>((set, get) => {
     backToLobby: () => send({ t: 'backToLobby' }),
     rematch: (on) => send({ t: 'rematch', on }),
     cheer: (emoji, targetId) => send({ t: 'react', emoji, targetId }),
+    say: (phrase) => send({ t: 'say', phrase }),
 
     // Only solo (LocalTable) games can pause: there's no other player whose
     // clock it would unfairly stop. Bypasses `send`/ClientMessage since the

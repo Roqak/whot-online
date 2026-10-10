@@ -74,6 +74,32 @@ export const REACTIONS = [
 
 export type Reaction = (typeof REACTIONS)[number]
 
+/**
+ * Quick chat: one-tap lines for people who can't or won't use voice. A fixed
+ * list sent by id, so there's no free text to moderate and old clients can
+ * ignore ids they don't know.
+ */
+export const PHRASES = [
+  { id: 'fast', text: 'Abeg play fast 😤' },
+  { id: 'holding', text: 'You dey hold card? 👀' },
+  { id: 'checkup', text: 'I go check up now 😎' },
+  { id: 'nawa', text: 'Na wa o 😩' },
+  { id: 'lastcard', text: 'Last card dey o! 🚨' },
+  { id: 'market', text: 'Go market! 🛒' },
+  { id: 'wahala', text: 'Wahala dey 😬' },
+  { id: 'luck', text: 'Na luck you get 🍀' },
+  { id: 'easy', text: 'Too easy 🥱' },
+  { id: 'sorry', text: 'Sorry o 😅' },
+  { id: 'gg', text: 'Good game 🤝' },
+  { id: 'again', text: 'Run it back! 🔁' },
+] as const
+
+export type PhraseId = (typeof PHRASES)[number]['id']
+
+export function phraseText(id: string): string | null {
+  return PHRASES.find((p) => p.id === id)?.text ?? null
+}
+
 export interface LobbyMember {
   id: string
   name: string
@@ -129,6 +155,7 @@ export type ClientMessage =
   | { t: 'nextRound' }
   | { t: 'backToLobby' }
   | { t: 'react'; emoji: Reaction; targetId?: string }
+  | { t: 'say'; phrase: PhraseId }
   | { t: 'voice'; on: boolean }
   | { t: 'rematch'; on: boolean }
   | { t: 'rtc'; to: string; description: RtcDescription }
@@ -151,6 +178,7 @@ export type ServerMessage =
   | { t: 'left'; reason: 'left' | 'kicked' | 'expired' }
   | { t: 'error'; code: ErrorCode; message: string }
   | { t: 'cheer'; from: string; emoji: Reaction; targetId: string | null; spectator: boolean }
+  | { t: 'said'; from: string; playerId: string | null; phrase: PhraseId; spectator: boolean }
   /** Sent to a player just before they appear in voice, so they can answer the calls that follow. */
   | { t: 'ice'; iceServers: IceServer[] }
   | { t: 'rtc'; from: string; description: RtcDescription }
@@ -210,6 +238,8 @@ export function parseClientMessage(raw: unknown): ClientMessage | null {
       if (!REACTIONS.includes(raw.emoji as Reaction)) return null
       if (raw.targetId !== undefined && !isStr(raw.targetId)) return null
       return { t: 'react', emoji: raw.emoji as Reaction, targetId: raw.targetId as string | undefined }
+    case 'say':
+      return PHRASES.some((p) => p.id === raw.phrase) ? { t: 'say', phrase: raw.phrase as PhraseId } : null
     case 'voice':
     case 'rematch':
       return typeof raw.on === 'boolean' ? { t: raw.t, on: raw.on } : null

@@ -3,6 +3,7 @@ import {
   ClientMessage,
   ErrorCode,
   LobbyView,
+  PhraseId,
   RtcDescription,
   Reaction,
   ServerMessage,
@@ -148,6 +149,9 @@ export class RoomManager {
           spectator: true,
         })
       }
+      if (msg.t === 'say') {
+        return this.say(room, { key: watcher.id, name: watcher.name, playerId: null, phrase: msg.phrase, spectator: true })
+      }
       if (msg.t === 'leave') return this.stopWatching(client)
       return this.error(client, 'forbidden', 'You are watching this table, not playing')
     }
@@ -201,6 +205,8 @@ export class RoomManager {
           m.rematch = false
         }
         return this.broadcastLobby(room)
+      case 'say':
+        return this.say(room, { key: member.id, name: member.name, playerId: member.id, phrase: msg.phrase, spectator: false })
       case 'voice':
         return this.setVoice(room, member, client, msg.on)
       case 'rematch':
@@ -437,7 +443,7 @@ export class RoomManager {
     opts: { key: string; name: string; playerId: string | null; emoji: Reaction; targetId?: string; spectator: boolean },
   ) {
     const now = this.now()
-    if (now - (room.lastReaction.get(opts.key) ?? 0) < REACTION_COOLDOWN_MS) return
+    if (now - (room.lastReaction.get(opts.key) ?? -Infinity) < REACTION_COOLDOWN_MS) return
     room.lastReaction.set(opts.key, now)
     const known =
       opts.targetId &&
@@ -449,6 +455,14 @@ export class RoomManager {
       targetId: known ? opts.targetId! : null,
       spectator: opts.spectator,
     })
+  }
+
+  /** Quick chat shares the reaction cooldown, so neither can be used to flood the table. */
+  private say(room: Room, opts: { key: string; name: string; playerId: string | null; phrase: PhraseId; spectator: boolean }) {
+    const now = this.now()
+    if (now - (room.lastReaction.get(opts.key) ?? -Infinity) < REACTION_COOLDOWN_MS) return
+    room.lastReaction.set(opts.key, now)
+    this.broadcast(room, { t: 'said', from: opts.name, playerId: opts.playerId, phrase: opts.phrase, spectator: opts.spectator })
   }
 
   // Game loop

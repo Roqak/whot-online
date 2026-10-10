@@ -122,6 +122,8 @@ export class LocalTable {
         this.game = null
         this.deadline = null
         return this.sendLobby()
+      case 'say':
+        return this.emit({ t: 'said', from: this.members.find((m) => m.id === ME)?.name ?? 'You', playerId: ME, phrase: msg.phrase, spectator: false })
       case 'react':
         return this.emit({
           t: 'cheer',

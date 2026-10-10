@@ -1,4 +1,4 @@
-import { motion } from 'framer-motion'
+import { AnimatePresence, motion } from 'framer-motion'
 import { Bot, Mic, MicOff, WifiOff } from 'lucide-react'
 import type { PublicPlayer } from '../../types/game'
 import { Avatar } from '../Avatar'
@@ -14,11 +14,13 @@ interface OpponentSeatProps {
   /** Set when both you and this player are in voice. */
   voice?: { speaking: boolean; muted: boolean } | null
   onToggleMute?: () => void
+  /** Their latest quick-chat line, while it's showing. */
+  said?: string | null
 }
 
 const AVATAR_SIZE = 46
 
-export function OpponentSeat({ player, onTurn, fraction, urgent, catchable, onCatch, voice, onToggleMute }: OpponentSeatProps) {
+export function OpponentSeat({ player, onTurn, fraction, urgent, catchable, onCatch, voice, onToggleMute, said }: OpponentSeatProps) {
   const out = player.eliminated
   const speaking = !!voice?.speaking && !voice.muted
   return (
@@ -115,6 +117,26 @@ export function OpponentSeat({ player, onTurn, fraction, urgent, catchable, onCa
       {player.announcedLastCard && !out && (
         <span className="chip mt-1 bg-marigold px-2 py-0 text-[10px] font-bold text-table-950">LAST CARD</span>
       )}
+
+      {/* Centred by the wrapper: motion's own transform would override a CSS translate. */}
+      <div className="pointer-events-none absolute inset-x-[-40px] top-full z-30 mt-1 flex justify-center">
+        <AnimatePresence>
+          {said && (
+            <motion.span
+              key={said}
+              initial={{ opacity: 0, y: -4, scale: 0.9 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
+              role="status"
+              className="relative w-max max-w-[160px] rounded-xl bg-paper px-2.5 py-1.5 text-center text-xs font-semibold leading-tight text-table-950 shadow-card-lift"
+            >
+              <span aria-hidden="true" className="absolute -top-1 left-1/2 h-2 w-2 -translate-x-1/2 rotate-45 bg-paper" />
+              {said}
+            </motion.span>
+          )}
+        </AnimatePresence>
+      </div>
 
       {catchable && (
         <motion.button
