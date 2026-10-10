@@ -37,8 +37,15 @@ import { TurnRing } from './game/TurnRing'
 
 export default function GameTable() {
   const game = useGameStore((s) => s.game)
-  if (!game) return null
-  return <Table view={game} />
+  // Leaving clears the game before this screen has faded out. Keep drawing the
+  // last table until it's gone: rendering nothing mid-exit unmounted animating
+  // children out from under the page transition, which then never finished and
+  // left a blank screen instead of the home page.
+  const lastGame = useRef(game)
+  if (game) lastGame.current = game
+  const view = game ?? lastGame.current
+  if (!view) return null
+  return <Table view={view} />
 }
 
 function Table({ view }: { view: GameView }) {
