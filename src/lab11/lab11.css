@@ -1,0 +1,644 @@
+/* Lab 11 — Whot Radar. One phosphor-green sonar dial on near-black navy. */
+
+.lab11 {
+  --lab11-bg: #03060c;
+  --lab11-panel: #060d14;
+  --lab11-green: #4dff96;
+  --lab11-line: rgba(77, 255, 150, 0.22);
+  --lab11-faint: rgba(77, 255, 150, 0.08);
+  --lab11-dim: rgba(77, 255, 150, 0.55);
+  --lab11-red: #ff5f5f;
+  --lab11-mono: ui-monospace, 'Cascadia Mono', 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace;
+
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  background:
+    radial-gradient(120% 90% at 50% 45%, rgba(77, 255, 150, 0.05), transparent 60%),
+    var(--lab11-bg);
+  color: var(--lab11-dim);
+  font-family: var(--lab11-mono);
+  -webkit-font-smoothing: antialiased;
+}
+
+.lab11 button {
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* ── top bar ─────────────────────────────────────────────────────────── */
+
+.lab11-top {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--lab11-line);
+}
+
+.lab11-mark {
+  display: flex;
+  flex-direction: column;
+  font-size: 13px;
+  letter-spacing: 0.35em;
+  color: var(--lab11-green);
+  text-shadow: 0 0 10px rgba(77, 255, 150, 0.35);
+}
+
+.lab11-mark small {
+  margin-top: 3px;
+  font-size: 9px;
+  letter-spacing: 0.18em;
+  opacity: 0.55;
+}
+
+.lab11-status {
+  flex: 1;
+  text-align: center;
+  font-size: 11px;
+  letter-spacing: 0.22em;
+  min-width: 0;
+}
+
+.lab11-status.mine {
+  color: var(--lab11-green);
+  text-shadow: 0 0 12px rgba(77, 255, 150, 0.4);
+  animation: lab11-breathe 2.4s ease-in-out infinite;
+}
+
+.lab11-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.lab11-toggle {
+  background: none;
+  border: 1px solid var(--lab11-line);
+  color: var(--lab11-dim);
+  font-family: inherit;
+  font-size: 10px;
+  letter-spacing: 0.15em;
+  padding: 5px 10px;
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.lab11-toggle:hover {
+  color: var(--lab11-green);
+  border-color: var(--lab11-dim);
+}
+
+.lab11-toggle.exit {
+  border-color: rgba(255, 95, 95, 0.4);
+  color: rgba(255, 150, 150, 0.85);
+}
+
+/* ── the dial ────────────────────────────────────────────────────────── */
+
+.lab11-stage {
+  flex: 1;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  padding: 12px;
+}
+
+.lab11-dial {
+  position: relative;
+  width: min(76vmin, 520px);
+  aspect-ratio: 1;
+  border-radius: 50%;
+  border: 1px solid var(--lab11-line);
+  background: radial-gradient(circle at 50% 50%, #071018 0%, #04080e 70%);
+  touch-action: none;
+  user-select: none;
+  cursor: grab;
+}
+
+.lab11-dial.dragging {
+  cursor: grabbing;
+}
+
+.lab11-ring {
+  position: absolute;
+  border: 1px solid var(--lab11-faint);
+  border-radius: 50%;
+  pointer-events: none;
+}
+
+.lab11-ring.r1 { inset: 17%; }
+.lab11-ring.r2 { inset: 9.5%; }
+.lab11-ring.r3 { inset: 3.5%; border-color: var(--lab11-line); }
+
+.lab11-axis {
+  position: absolute;
+  background: var(--lab11-faint);
+  pointer-events: none;
+}
+
+.lab11-axis-h { left: 4%; right: 4%; top: 50%; height: 1px; }
+.lab11-axis-v { top: 4%; bottom: 4%; left: 50%; width: 1px; }
+
+.lab11-sweep {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  pointer-events: none;
+  background: conic-gradient(
+    from 0deg,
+    rgba(77, 255, 150, 0.14) 0deg,
+    rgba(77, 255, 150, 0.02) 55deg,
+    transparent 70deg 360deg
+  );
+  animation: lab11-spin 6s linear infinite;
+}
+
+.lab11-scan {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  pointer-events: none;
+  background: repeating-linear-gradient(0deg, rgba(77, 255, 150, 0.028) 0 1px, transparent 1px 4px);
+  z-index: 6;
+}
+
+.lab11-ping {
+  position: absolute;
+  inset: 17%;
+  border-radius: 50%;
+  border: 1px solid rgba(77, 255, 150, 0.5);
+  pointer-events: none;
+  z-index: 1;
+  animation: lab11-ping 1s ease-out both;
+}
+
+.lab11-ping::after {
+  content: '';
+  position: absolute;
+  inset: -8%;
+  border-radius: 50%;
+  border: 1px solid rgba(77, 255, 150, 0.3);
+  animation: lab11-ping 1s 0.25s ease-out both;
+}
+
+.lab11-aim {
+  position: absolute;
+  top: 1.2%;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 0;
+  height: 0;
+  border-left: 6px solid transparent;
+  border-right: 6px solid transparent;
+  border-top: 9px solid var(--lab11-green);
+  z-index: 5;
+  pointer-events: none;
+  filter: drop-shadow(0 0 6px rgba(77, 255, 150, 0.6));
+}
+
+/* ── hand ring cards ─────────────────────────────────────────────────── */
+
+.lab11-hcard {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 54px;
+  height: 76px;
+  border-radius: 7px;
+  border: 1px solid rgba(77, 255, 150, 0.3);
+  background: rgba(7, 19, 13, 0.92);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  color: rgba(77, 255, 150, 0.4);
+  z-index: 2;
+  pointer-events: none;
+  transition: transform 0.28s ease, opacity 0.2s ease;
+}
+
+.lab11-dial.dragging .lab11-hcard {
+  transition: none;
+}
+
+.lab11-cnum {
+  font-size: 11px;
+  letter-spacing: 0.08em;
+}
+
+.lab11-cw {
+  font-size: 7px;
+  letter-spacing: 0.3em;
+}
+
+.lab11-hcard.legal {
+  color: var(--lab11-green);
+  border-color: rgba(77, 255, 150, 0.65);
+  background: rgba(9, 28, 18, 0.92);
+}
+
+.lab11-hcard.off {
+  opacity: 0.42;
+}
+
+.lab11-hcard.aimed {
+  border-color: var(--lab11-green);
+  box-shadow: 0 0 18px rgba(77, 255, 150, 0.28), 0 0 2px rgba(77, 255, 150, 0.8);
+}
+
+.lab11-dial.naming .lab11-hcard {
+  opacity: 0.18;
+}
+
+.lab11-dial.crowded .lab11-hcard {
+  width: 44px;
+  height: 62px;
+  border-radius: 6px;
+}
+
+/* ── core: the pile + fire button ────────────────────────────────────── */
+
+.lab11-core {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 30%;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  border: 1px solid rgba(77, 255, 150, 0.4);
+  background: rgba(5, 14, 10, 0.94);
+  color: var(--lab11-green);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  z-index: 4;
+  cursor: pointer;
+  font-family: inherit;
+  transition: box-shadow 0.2s ease;
+}
+
+.lab11-core.ready {
+  box-shadow: 0 0 22px rgba(77, 255, 150, 0.25), inset 0 0 18px rgba(77, 255, 150, 0.08);
+}
+
+.lab11-core:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.lab11-core-num {
+  font-size: 12px;
+  letter-spacing: 0.1em;
+}
+
+.lab11-core-pile {
+  position: absolute;
+  bottom: 9%;
+  font-size: 8px;
+  letter-spacing: 0.2em;
+  opacity: 0.6;
+}
+
+.lab11-core.deny {
+  animation: lab11-deny 0.42s ease;
+}
+
+/* ── market sector ───────────────────────────────────────────────────── */
+
+.lab11-market {
+  position: absolute;
+  left: 50%;
+  bottom: 0.8%;
+  transform: translateX(-50%);
+  width: 36%;
+  height: 10.5%;
+  border: 1px solid rgba(77, 255, 150, 0.35);
+  border-bottom: none;
+  border-radius: 50% 50% 0 0 / 100% 100% 0 0;
+  background: rgba(4, 10, 8, 0.92);
+  color: var(--lab11-green);
+  font-family: inherit;
+  font-size: 9px;
+  letter-spacing: 0.28em;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  padding-bottom: 6%;
+  gap: 2px;
+  z-index: 4;
+  cursor: pointer;
+}
+
+.lab11-market:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.lab11-market.urge {
+  border-color: var(--lab11-green);
+  animation: lab11-urge 1s ease-in-out infinite;
+}
+
+.lab11-take {
+  font-size: 8px;
+  letter-spacing: 0.2em;
+}
+
+/* ── bot blips ───────────────────────────────────────────────────────── */
+
+.lab11-bot {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  background: none;
+  border: none;
+  padding: 4px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  z-index: 3;
+  font-family: inherit;
+  cursor: default;
+}
+
+.lab11-bot-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  border: 1px solid var(--lab11-dim);
+}
+
+.lab11-bot.active .lab11-bot-dot {
+  background: var(--lab11-green);
+  border-color: var(--lab11-green);
+  box-shadow: 0 0 10px rgba(77, 255, 150, 0.7);
+}
+
+.lab11-bot-tag {
+  font-size: 8px;
+  letter-spacing: 0.14em;
+  color: var(--lab11-dim);
+  white-space: nowrap;
+}
+
+.lab11-bot.catchable {
+  cursor: pointer;
+}
+
+.lab11-bot.catchable .lab11-bot-dot {
+  border-color: var(--lab11-green);
+  animation: lab11-blink 0.8s steps(2, start) infinite;
+}
+
+/* ── whot shape blips + lock badge ───────────────────────────────────── */
+
+.lab11-blip {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  border: 1px solid var(--lab11-dim);
+  background: rgba(6, 18, 12, 0.95);
+  color: var(--lab11-green);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  z-index: 5;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 8px;
+  letter-spacing: 0.2em;
+}
+
+.lab11-blip:hover {
+  border-color: var(--lab11-green);
+  box-shadow: 0 0 16px rgba(77, 255, 150, 0.4);
+}
+
+.lab11-req {
+  position: absolute;
+  top: 12%;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 9px;
+  letter-spacing: 0.25em;
+  color: var(--lab11-green);
+  border: 1px solid var(--lab11-line);
+  background: var(--lab11-panel);
+  padding: 4px 10px;
+  z-index: 5;
+  white-space: nowrap;
+}
+
+/* ── readout + footer ────────────────────────────────────────────────── */
+
+.lab11-readout {
+  margin-top: 10px;
+  text-align: center;
+  font-size: 10px;
+  letter-spacing: 0.25em;
+  color: var(--lab11-dim);
+  min-height: 14px;
+}
+
+.lab11-foot {
+  display: flex;
+  align-items: flex-end;
+  gap: 18px;
+  padding: 10px 16px 14px;
+  border-top: 1px solid var(--lab11-line);
+  font-size: 10px;
+}
+
+.lab11-ticker {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-height: 42px;
+}
+
+.lab11-line {
+  letter-spacing: 0.06em;
+  opacity: 0.75;
+}
+
+.lab11-line.good {
+  color: var(--lab11-green);
+  opacity: 1;
+}
+
+.lab11-line.bad {
+  color: var(--lab11-red);
+}
+
+.lab11-meta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 5px;
+  text-align: right;
+  letter-spacing: 0.18em;
+  white-space: nowrap;
+}
+
+.lab11-chip {
+  background: none;
+  border: 1px solid var(--lab11-green);
+  color: var(--lab11-green);
+  font-family: inherit;
+  font-size: 9px;
+  letter-spacing: 0.2em;
+  padding: 4px 8px;
+  border-radius: 3px;
+  cursor: pointer;
+  animation: lab11-breathe 1.6s ease-in-out infinite;
+}
+
+/* ── overlays ────────────────────────────────────────────────────────── */
+
+.lab11-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(2, 5, 9, 0.82);
+  display: grid;
+  place-items: center;
+  z-index: 50;
+  animation: lab11-fade 0.2s ease;
+}
+
+.lab11-panel {
+  border: 1px solid var(--lab11-dim);
+  background: #05100b;
+  padding: 22px 26px;
+  min-width: 280px;
+  max-width: 88vw;
+  color: var(--lab11-green);
+}
+
+.lab11-panel h2 {
+  margin: 0 0 4px;
+  font-size: 13px;
+  font-weight: 400;
+  letter-spacing: 0.3em;
+}
+
+.lab11-panel .sub {
+  margin: 0 0 14px;
+  font-size: 9px;
+  letter-spacing: 0.2em;
+  opacity: 0.6;
+}
+
+.lab11-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 16px;
+}
+
+.lab11-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 24px;
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  opacity: 0.7;
+}
+
+.lab11-row.win {
+  opacity: 1;
+  color: var(--lab11-green);
+}
+
+.lab11-btns {
+  display: flex;
+  gap: 10px;
+}
+
+.lab11-btn {
+  background: var(--lab11-green);
+  color: #03110a;
+  border: none;
+  font-family: inherit;
+  font-size: 10px;
+  letter-spacing: 0.2em;
+  padding: 8px 14px;
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.lab11-btn.ghost {
+  background: none;
+  border: 1px solid var(--lab11-dim);
+  color: var(--lab11-green);
+}
+
+/* ── motion ──────────────────────────────────────────────────────────── */
+
+@keyframes lab11-spin {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes lab11-ping {
+  from { transform: scale(0.35); opacity: 0.9; }
+  to { transform: scale(1.9); opacity: 0; }
+}
+
+@keyframes lab11-breathe {
+  50% { opacity: 0.7; }
+}
+
+@keyframes lab11-blink {
+  50% { background: var(--lab11-green); }
+}
+
+@keyframes lab11-urge {
+  50% { box-shadow: 0 0 18px rgba(77, 255, 150, 0.4); }
+}
+
+@keyframes lab11-deny {
+  0%, 100% { border-color: rgba(77, 255, 150, 0.4); }
+  50% { border-color: var(--lab11-red); box-shadow: 0 0 20px rgba(255, 95, 95, 0.3); }
+}
+
+@keyframes lab11-fade {
+  from { opacity: 0; }
+}
+
+@media (max-width: 520px) {
+  .lab11-top {
+    flex-wrap: wrap;
+  }
+
+  .lab11-status {
+    order: 3;
+    flex-basis: 100%;
+  }
+
+  .lab11-hcard {
+    width: 46px;
+    height: 66px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lab11-sweep,
+  .lab11-ping,
+  .lab11-ping::after,
+  .lab11-status.mine,
+  .lab11-market.urge,
+  .lab11-bot.catchable .lab11-bot-dot,
+  .lab11-chip {
+    animation: none;
+  }
+}
