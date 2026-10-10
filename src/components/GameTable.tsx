@@ -4,7 +4,7 @@ import confetti from 'canvas-confetti'
 import { ArrowDownUp, Check, Copy, Eye, HelpCircle, LogOut, Pause, Smile, Volume2, VolumeX } from 'lucide-react'
 import { toast } from 'sonner'
 import { Cheer, Said, useGameStore } from '../store/gameStore'
-import { playUrl, watchUrl } from '../net/protocol'
+import { playUrl, publicOrigin, watchUrl } from '../net/protocol'
 import { describeEvent } from '../lib/events'
 import {
   GameEvent,
@@ -522,6 +522,7 @@ function Table({ view }: { view: GameView }) {
                 onVote: rematch,
               }}
               highlights={highlights}
+              shareUrl={isLocal ? publicOrigin() : playUrl(roomCode)}
             />
           )}
         </AnimatePresence>

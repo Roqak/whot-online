@@ -1,6 +1,9 @@
 import { useState } from 'react'
 import { motion } from 'framer-motion'
-import { Check, Loader2, RotateCcw, Trophy } from 'lucide-react'
+import { Check, Loader2, LogOut, RotateCcw, Share2, Trophy } from 'lucide-react'
+import { toast } from 'sonner'
+import { shareResultCard } from '../../lib/shareCard'
+import { copyText } from '../../lib/share'
 import type { GameView } from '../../types/game'
 import type { LobbyMember } from '../../net/protocol'
 import type { Highlight } from '../../engine/highlights'
@@ -18,9 +21,11 @@ interface RoundOverlayProps {
   onLeave: () => void
   rematch: { voters: LobbyMember[]; onVote: (on: boolean) => void }
   highlights: Highlight[] | null
+  /** The link the share card invites people to. */
+  shareUrl: string
 }
 
-export function RoundOverlay({ view, isHost, secondsLeft, onNextRound, onBackToLobby, onLeave, rematch, highlights }: RoundOverlayProps) {
+export function RoundOverlay({ view, isHost, secondsLeft, onNextRound, onBackToLobby, onLeave, rematch, highlights, shareUrl }: RoundOverlayProps) {
   const result = view.lastRound
   const matchOver = view.phase === 'matchOver'
   const championId = view.matchWinnerId
@@ -31,6 +36,39 @@ export function RoundOverlay({ view, isHost, secondsLeft, onNextRound, onBackToL
   const iVoted = rematch.voters.some((m) => m.id === view.myId && m.rematch)
   const votes = rematch.voters.filter((m) => m.rematch).length
   const waitingOn = rematch.voters.filter((m) => !m.rematch).map((m) => m.name)
+  const [sharing, setSharing] = useState(false)
+
+  // Every finished match is an invite: a picture of the result, ready for WhatsApp.
+  const share = async () => {
+    if (sharing || !winnerId) return
+    setSharing(true)
+    const winner = view.players.find((p) => p.id === winnerId)
+    const rounds = result?.round ?? view.round
+    const text = iWon
+      ? `I just won at Last Card 🔥 Think you can beat me? ${shareUrl}`
+      : `${name(winnerId)} beat me at Last Card 😤 Rematch? ${shareUrl}`
+    try {
+      const outcome = await shareResultCard(
+        {
+          headline: iWon ? 'I won!' : `${name(winnerId)} wins`,
+          winner: { name: winner?.name ?? 'Someone', avatar: winner?.avatar ?? 'lion' },
+          // On a picture other people see, "You" means nothing: use real names.
+          highlights: (highlights ?? []).map((h) => describeHighlight(h, name)),
+          meta: `${view.players.length} players · ${rounds} ${rounds === 1 ? 'round' : 'rounds'}`,
+          url: shareUrl,
+        },
+        text,
+      )
+      if (outcome === 'downloaded') {
+        const copied = await copyText(text)
+        toast(copied ? 'Picture saved, and the invite is copied to paste with it' : 'Picture saved')
+      }
+    } catch {
+      toast.error('Could not make the picture. Try again.')
+    } finally {
+      setSharing(false)
+    }
+  }
 
   return (
     <motion.div
@@ -141,16 +179,19 @@ export function RoundOverlay({ view, isHost, secondsLeft, onNextRound, onBackToL
                   </span>
                 )}
               </button>
+              <button className="btn-ghost px-3" onClick={() => void share()} aria-label="Share the result" title="Share the result">
+                {sharing ? <Loader2 size={17} className="animate-spin" /> : <Share2 size={17} />}
+              </button>
               <button
-                className="btn-ghost"
+                className="btn-ghost px-3"
                 onClick={() => setShowLeaderboard(true)}
                 title="View leaderboard & stats"
                 aria-label="View leaderboard"
               >
                 <Trophy size={16} />
               </button>
-              <button className="btn-ghost" onClick={onLeave}>
-                Leave
+              <button className="btn-ghost px-3" onClick={onLeave} aria-label="Leave the table" title="Leave">
+                <LogOut size={17} />
               </button>
             </>
           ) : isHost ? (
