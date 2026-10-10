@@ -22,6 +22,8 @@ interface CrazyGamesSettings {
 }
 
 interface Window {
+  /** Set by the boot script in index.html: retry a failed load with backoff, or show the failure. */
+  __bootRetry?: (message?: string) => void
   CrazyGames?: {
     SDK: {
       init: () => Promise<void>

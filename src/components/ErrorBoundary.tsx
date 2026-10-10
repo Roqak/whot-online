@@ -21,6 +21,12 @@ export class ErrorBoundary extends Component<Props, State> {
   }
 
   componentDidCatch(error: Error, info: unknown) {
+    // A screen's code failed to download (flaky data, or a deploy since this tab
+    // opened): that's a retry, not a crash. The boot script owns retry counting.
+    if (isChunkLoadError(error) && window.__bootRetry) {
+      window.__bootRetry(error.message)
+      return
+    }
     console.error('[whot] render crash', error, info)
   }
 
@@ -43,4 +49,8 @@ export class ErrorBoundary extends Component<Props, State> {
       </div>
     )
   }
+}
+
+function isChunkLoadError(error: Error) {
+  return /dynamically imported module|Importing a module script failed|Unable to preload CSS/i.test(error?.message ?? '')
 }

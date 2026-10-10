@@ -21,15 +21,23 @@
     <meta name="twitter:card" content="summary" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <!--
+      Fonts never block the first paint: on slow mobile data a render-blocking
+      Google Fonts request kept even the boot screen from showing. The page
+      draws in system fonts and swaps when these arrive. Lab fonts load with the labs.
+    -->
     <link
       href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=Inter:wght@400;500;600;700&display=swap"
       rel="stylesheet"
+      media="print"
+      onload="this.media='all'"
     />
-    <!-- Whot Lab (#/lab) print-shop faces: loaded with the app, used only there. -->
-    <link
-      href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&family=Fraunces:opsz,wght@9..144,600;9..144,900&display=swap"
-      rel="stylesheet"
-    />
+    <noscript>
+      <link
+        href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=Inter:wght@400;500;600;700&display=swap"
+        rel="stylesheet"
+      />
+    </noscript>
     <!-- Boot screen styles are inline: they must work even if the app's own CSS fails to load. -->
     <style>
       #boot {
@@ -87,6 +95,18 @@
         font: 600 14px system-ui, sans-serif;
         cursor: pointer;
       }
+      .boot-fresh {
+        display: block;
+        margin: 12px auto 0;
+        padding: 8px 12px;
+        border: 0;
+        background: none;
+        color: #b9b3c9;
+        font: 500 13px system-ui, sans-serif;
+        text-decoration: underline;
+        text-underline-offset: 3px;
+        cursor: pointer;
+      }
       @keyframes boot-in {
         from {
           opacity: 0;
@@ -141,6 +161,7 @@
         </p>
         <p class="boot-error" hidden></p>
         <button class="boot-reload" type="button" hidden>Refresh</button>
+        <button class="boot-fresh" type="button" hidden>Start fresh</button>
       </div>
     </div>
     <div id="root"></div>
@@ -187,39 +208,137 @@
         var hint = boot.querySelector('.boot-hint')
         var detail = boot.querySelector('.boot-error')
         var reload = boot.querySelector('.boot-reload')
+        var fresh = boot.querySelector('.boot-fresh')
         var failed = false
         var crashed = false
+        var retrying = false
         var everMounted = false
 
+        // "Start fresh" busts caches with ?fresh=; don't leave it in links people share.
+        if (/[?&]fresh=/.test(location.search) && history.replaceState) {
+          history.replaceState(history.state, '', location.pathname + location.hash)
+        }
+
+        // Retries survive the reload they trigger, but not the tab: a dropped
+        // file on mobile data is usually fixed by simply asking again.
+        var RETRY_KEY = 'whot:bootRetries'
+        var MAX_RETRIES = 3
+        function retries() {
+          try {
+            return Number(sessionStorage.getItem(RETRY_KEY)) || 0
+          } catch (e) {
+            return MAX_RETRIES
+          }
+        }
+        function setRetries(n) {
+          try {
+            if (n) sessionStorage.setItem(RETRY_KEY, String(n))
+            else sessionStorage.removeItem(RETRY_KEY)
+          } catch (e) {}
+        }
+
+        function slowNetwork() {
+          var c = navigator.connection
+          return !!(c && (c.saveData || /(^|-)2g|3g/.test(c.effectiveType || '')))
+        }
+
         reload.onclick = function () {
+          setRetries(0)
           location.reload()
+        }
+
+        // Everything a stale or broken load could be hiding behind, short of
+        // the player's own data (name, settings, stats stay in localStorage).
+        fresh.onclick = function () {
+          setRetries(0)
+          var jobs = []
+          try {
+            if (navigator.serviceWorker && navigator.serviceWorker.getRegistrations) {
+              jobs.push(
+                navigator.serviceWorker.getRegistrations().then(function (regs) {
+                  return Promise.all(regs.map(function (r) { return r.unregister() }))
+                }),
+              )
+            }
+            if (window.caches && caches.keys) {
+              jobs.push(
+                caches.keys().then(function (keys) {
+                  return Promise.all(keys.map(function (k) { return caches.delete(k) }))
+                }),
+              )
+            }
+          } catch (e) {}
+          var go = function () {
+            location.replace(location.pathname + '?fresh=' + Date.now() + location.hash)
+          }
+          Promise.all(jobs).then(go, go)
+          setTimeout(go, 1500)
         }
 
         function mounted() {
           return root.childElementCount > 0
         }
 
-        function trouble(message) {
-          if (mounted()) return
+        function show(titleText, hintText, buttons) {
           boot.hidden = false
-          title.textContent = crashed ? 'Something went wrong' : failed ? 'The game could not load' : 'Still dealing…'
-          hint.textContent = crashed
-            ? 'Refresh to get back to the table.'
-            : failed
-              ? 'Refresh the page, or try again with browser extensions turned off.'
-              : 'This is taking longer than it should. Refresh the page, or try again with browser extensions turned off.'
-          hint.hidden = false
-          reload.hidden = false
+          title.textContent = titleText
+          hint.textContent = hintText
+          hint.hidden = !hintText
+          reload.hidden = !buttons
+          fresh.hidden = buttons !== 'both'
+        }
+
+        function trouble(message) {
+          if (mounted() || retrying) return
+          if (crashed) show('Something went wrong', 'Refresh to get back to the table.', 'both')
+          else if (failed) show('The game could not load', 'Check your connection, then refresh. If it keeps happening, start fresh.', 'both')
+          else
+            show(
+              'Still dealing…',
+              slowNetwork()
+                ? 'Your connection is slow, so this can take a moment. Hang on.'
+                : 'This is taking longer than usual. Hang on, or refresh.',
+              'refresh',
+            )
           if (message) {
             detail.textContent = String(message).slice(0, 300)
             detail.hidden = false
           }
         }
 
+        // A file failed to arrive: try again by itself a few times, backing off,
+        // before asking the player to do anything.
+        function retryOrFail(message) {
+          if (retrying) return
+          var n = retries()
+          if (n < MAX_RETRIES) {
+            retrying = true
+            setRetries(n + 1)
+            show('Reconnecting…', n ? 'Still trying (' + (n + 1) + ' of ' + MAX_RETRIES + ')' : 'The connection dropped a file. Trying again.', null)
+            setTimeout(function () {
+              location.reload()
+            }, 1000 * Math.pow(2, n))
+            return
+          }
+          failed = true
+          trouble(message)
+        }
+        window.__bootRetry = retryOrFail
+
+        function chunkError(message) {
+          return /dynamically imported module|Importing a module script failed|Unable to preload CSS/i.test(String(message))
+        }
+
         new MutationObserver(function () {
           if (mounted()) {
             everMounted = true
             boot.hidden = true
+            // Stayed up: the next failure gets a full set of retries again. Not
+            // straight away, or a screen whose code is gone for good would
+            // mount, fail, reload and mount again forever.
+            setTimeout(function () {
+              if (mounted()) setRetries(0)
+            }, 10000)
           } else if (everMounted) {
             // The game was up and then emptied itself: it crashed.
             failed = true
@@ -240,9 +359,9 @@
             if (target && target !== window && (target.tagName === 'SCRIPT' || target.tagName === 'LINK')) {
               var url = target.src || target.href
               if (!ours(url)) return
-              failed = true
-              trouble('Could not load ' + url)
+              retryOrFail('Could not load ' + url)
             } else if (event.message) {
+              if (chunkError(event.message) && !mounted()) return retryOrFail(event.message)
               failed = true
               detail.textContent = String(event.message).slice(0, 300)
               trouble(event.message)
@@ -255,13 +374,26 @@
           var reason = event.reason
           var message = reason && reason.message ? reason.message : String(reason)
           if (mounted()) return
+          if (chunkError(message)) return retryOrFail(message)
           failed = true
           trouble(message)
         })
 
+        // A tab left open across a deploy asks for chunks that no longer exist.
+        // Vite reports it here; a reload picks up the new build.
+        window.addEventListener('vite:preloadError', function (event) {
+          event.preventDefault()
+          retryOrFail(event.payload && event.payload.message)
+        })
+
+        // Slow is not broken: say so calmly first, offer a clean slate later.
         setTimeout(function () {
           trouble()
-        }, 8000)
+        }, 12000)
+        setTimeout(function () {
+          if (mounted() || retrying) return
+          show('Still dealing…', 'Still no luck. Refresh, or start fresh to clear anything stale.', 'both')
+        }, 40000)
       })()
     </script>
     <script type="module" src="/src/main.tsx"></script>
