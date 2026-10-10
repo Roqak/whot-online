@@ -30,6 +30,7 @@ import { BOT_AVATAR, isValidAvatar } from '../src/lib/avatars'
 import { BotLevel, DEFAULT_SETTINGS, GameEvent, GameSettings, GameState, sanitizeSettings } from '../src/types/game'
 import { leaderboard } from './leaderboard'
 import { IceServerProvider, STUN_ONLY } from './turn'
+import { MatchTally } from '../src/engine/highlights'
 
 export interface Client {
   send(msg: ServerMessage): void
@@ -73,6 +74,8 @@ interface Room {
   /** One entry per catchable player; null means no bot decided to catch them this time. */
   catchTimers: Map<string, Timer | null>
   lastReaction: Map<string, number>
+  /** Highlights for the match in progress; fresh each deal. */
+  tally: MatchTally | null
 }
 
 export interface RoomManagerOptions {
@@ -329,6 +332,7 @@ export class RoomManager {
       roundTimer: null,
       catchTimers: new Map(),
       lastReaction: new Map(),
+      tally: null,
     }
     this.rooms.set(room.code, room)
     this.bind(client, room, host)
@@ -384,6 +388,7 @@ export class RoomManager {
 
   private dealMatch(room: Room) {
     for (const m of room.members) m.rematch = false
+    room.tally = new MatchTally(this.now)
     room.game = createMatch(
       room.members.map(({ id, name, avatar, isBot, botLevel }) => ({ id, name, avatar, isBot, botLevel })),
       room.settings,
@@ -469,6 +474,7 @@ export class RoomManager {
 
   private commit(room: Room, state: GameState, events: GameEvent[]) {
     room.game = state
+    room.tally?.add(events)
     if (state.phase === 'matchOver') {
       const over = events.find((e): e is Extract<GameEvent, { type: 'matchOver' }> => e.type === 'matchOver')
       if (over) {
@@ -656,12 +662,13 @@ export class RoomManager {
     const game = room.game
     if (!game) return
     const isConnected = (id: string) => !!room.members.find((m) => m.id === id)?.client
+    const highlights = game.phase === 'matchOver' ? (room.tally?.highlights() ?? []) : undefined
     for (const m of room.members) {
-      m.client?.send({ t: 'game', view: toView(game, m.id, { isConnected, deadline: room.deadline }), events })
+      m.client?.send({ t: 'game', view: toView(game, m.id, { isConnected, deadline: room.deadline }), events, highlights })
     }
     if (room.watchers.size > 0) {
       const view = this.spectatorView(room)
-      for (const watcher of room.watchers.keys()) watcher.send({ t: 'game', view, events })
+      for (const watcher of room.watchers.keys()) watcher.send({ t: 'game', view, events, highlights })
     }
   }
 

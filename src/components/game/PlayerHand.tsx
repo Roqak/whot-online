@@ -28,8 +28,14 @@ export function PlayerHand({ cards, playableIds, selectedId, shakeId, interactiv
   }, [cards.length, focusIndex])
 
   const count = cards.length
-  // Leave room for the tilt on the outer cards, and let a big hand overlap rather than run off the edge.
-  const spacing = count > 1 ? Math.min(cardWidth * 0.66, Math.max(10, (width - cardWidth - 24) / (count - 1))) : 0
+  const tiltStep = count > 1 ? Math.min(MAX_TILT, 34 / count) : 0
+  // The outer cards lean out from their bottom corner, so their tops swing past
+  // where they sit; reserve that much room on each side or a big hand runs off screen.
+  const maxTilt = ((count - 1) / 2) * tiltStep
+  const overhang = Math.ceil(cardWidth * 1.4 * Math.sin((maxTilt * Math.PI) / 180))
+  const usable = width - 2 * overhang - 16
+  // Let a big hand overlap rather than run off the edge.
+  const spacing = count > 1 ? Math.min(cardWidth * 0.66, Math.max(10, (usable - cardWidth) / (count - 1))) : 0
   const startX = (width - (cardWidth + spacing * (count - 1))) / 2
 
   const move = (from: number, delta: number) => {
@@ -48,7 +54,7 @@ export function PlayerHand({ cards, playableIds, selectedId, shakeId, interactiv
       {cards.map((card, i) => {
         const playable = playableIds.has(card.id)
         const selected = selectedId === card.id
-        const tilt = count > 1 ? (i - (count - 1) / 2) * Math.min(MAX_TILT, 34 / count) : 0
+        const tilt = count > 1 ? (i - (count - 1) / 2) * tiltStep : 0
         const t = count > 1 ? (i - (count - 1) / 2) / ((count - 1) / 2) : 0
         const arc = t * t * 12
 

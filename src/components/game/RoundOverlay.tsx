@@ -3,6 +3,8 @@ import { motion } from 'framer-motion'
 import { Check, Loader2, RotateCcw, Trophy } from 'lucide-react'
 import type { GameView } from '../../types/game'
 import type { LobbyMember } from '../../net/protocol'
+import type { Highlight } from '../../engine/highlights'
+import { describeHighlight } from '../../lib/highlights'
 import { Avatar } from '../Avatar'
 import { LeaderboardModal } from '../LeaderboardModal'
 import { WhotCard } from '../cards/WhotCard'
@@ -15,9 +17,10 @@ interface RoundOverlayProps {
   onBackToLobby: () => void
   onLeave: () => void
   rematch: { voters: LobbyMember[]; onVote: (on: boolean) => void }
+  highlights: Highlight[] | null
 }
 
-export function RoundOverlay({ view, isHost, secondsLeft, onNextRound, onBackToLobby, onLeave, rematch }: RoundOverlayProps) {
+export function RoundOverlay({ view, isHost, secondsLeft, onNextRound, onBackToLobby, onLeave, rematch, highlights }: RoundOverlayProps) {
   const result = view.lastRound
   const matchOver = view.phase === 'matchOver'
   const championId = view.matchWinnerId
@@ -58,6 +61,23 @@ export function RoundOverlay({ view, isHost, secondsLeft, onNextRound, onBackToL
             <p className="mt-1 text-sm text-fg-muted">Market finished, so the lowest hand won</p>
           )}
         </header>
+
+        {matchOver && highlights && highlights.length > 0 && (
+          <ul className="mt-4 grid grid-cols-2 gap-2" aria-label="Match highlights">
+            {highlights.map((h) => {
+              const line = describeHighlight(h, (id) => (id === view.myId ? 'You' : name(id)))
+              return (
+                <li key={h.kind} className="rounded-xl bg-table-800/60 px-3 py-2 ring-1 ring-table-600/40">
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-marigold">
+                    <span className="mr-1" aria-hidden="true">{line.icon}</span>
+                    {line.title}
+                  </p>
+                  <p className="mt-0.5 text-[13px] leading-snug text-fg">{line.detail}</p>
+                </li>
+              )
+            })}
+          </ul>
+        )}
 
         {result && (
           <ul className="mt-4 space-y-2">

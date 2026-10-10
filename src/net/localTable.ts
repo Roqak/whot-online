@@ -12,6 +12,7 @@ import {
   startNextRound,
   toView,
 } from '../engine/gameEngine'
+import { MatchTally } from '../engine/highlights'
 import { BOT_AVATAR } from '../lib/avatars'
 import { BotLevel, DEFAULT_SETTINGS, GameEvent, GameSettings, GameState, sanitizeSettings } from '../types/game'
 import { ClientMessage, LobbyView, ServerMessage, cleanName } from './protocol'
@@ -49,6 +50,7 @@ export class LocalTable {
   private members: Member[] = []
   private settings: GameSettings = { ...DEFAULT_SETTINGS }
   private game: GameState | null = null
+  private tally: MatchTally | null = null
   private deadline: number | null = null
   private scheduledTurnId: number | null = null
   private turnTimer: Timer | null = null
@@ -196,6 +198,7 @@ export class LocalTable {
   private start() {
     if (this.game) return
     if (this.members.length < MIN_PLAYERS) return this.error('rejected', 'Add a bot to start')
+    this.tally = new MatchTally()
     this.game = createMatch(this.members, this.settings, this.rng)
     this.sendLobby()
     this.commit(this.game, [{ type: 'roundStarted', round: 1 }])
@@ -203,6 +206,7 @@ export class LocalTable {
 
   private commit(state: GameState, events: GameEvent[]) {
     this.game = state
+    this.tally?.add(events)
     this.schedule()
     this.sendGame(events)
   }
@@ -333,6 +337,7 @@ export class LocalTable {
       t: 'game',
       view: toView(this.game, ME, { isConnected: () => true, deadline: this.deadline }),
       events,
+      highlights: this.game.phase === 'matchOver' ? (this.tally?.highlights() ?? []) : undefined,
     })
   }
 

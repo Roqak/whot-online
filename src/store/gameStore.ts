@@ -8,6 +8,7 @@ import { ConnectionStatus, GameConnection, socketUrl } from '../net/connection'
 import { LocalTable } from '../net/localTable'
 import { ClientMessage, LobbyView, PhraseId, Reaction, ServerMessage, normalizeRoomCode, phraseText } from '../net/protocol'
 import { VoiceChat, voiceSupported } from '../net/voice'
+import type { Highlight } from '../engine/highlights'
 
 /**
  * The portal build has no server: the game runs in the browser instead.
@@ -76,6 +77,8 @@ interface StoreState {
   lastBatch: EventBatch | null
   cheers: Cheer[]
   said: Said[]
+  /** The finished match's best moments; null while a match is going. */
+  highlights: Highlight[] | null
   /** Card sent to the server but not yet confirmed; shown as already played. */
   pendingCardId: string | null
   busy: 'create' | 'join' | 'quick' | 'watch' | null
@@ -227,6 +230,7 @@ export const useGameStore = create<StoreState>((set, get) => {
       busy: null,
       cheers: [],
       said: [],
+      highlights: null,
       // Back to the app's offline default once a room's left, so opting into
       // an online table is a fresh choice each time rather than sticky.
       isLocal: LOCAL_ONLY,
@@ -279,6 +283,7 @@ export const useGameStore = create<StoreState>((set, get) => {
         break
       case 'game':
         set({
+          highlights: msg.highlights ?? null,
           game: msg.view,
           pendingCardId: null,
           lastBatch: { seq: ++batchSeq, events: msg.events, view: msg.view },
@@ -369,6 +374,7 @@ export const useGameStore = create<StoreState>((set, get) => {
     lastBatch: null,
     cheers: [],
     said: [],
+    highlights: null,
     pendingCardId: null,
     busy: watchCode ? 'watch' : null,
     formError: null,

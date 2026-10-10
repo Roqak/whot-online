@@ -56,6 +56,7 @@ function Table({ view }: { view: GameView }) {
   const lastBatch = useGameStore((s) => s.lastBatch)
   const cheers = useGameStore((s) => s.cheers)
   const said = useGameStore((s) => s.said)
+  const highlights = useGameStore((s) => s.highlights)
   const say = useGameStore((s) => s.say)
   const hostId = useGameStore((s) => s.lobby?.hostId)
   const lobbyMembers = useGameStore((s) => s.lobby?.members)
@@ -520,6 +521,7 @@ function Table({ view }: { view: GameView }) {
                 voters: (lobbyMembers ?? []).filter((m) => !m.isBot && m.connected),
                 onVote: rematch,
               }}
+              highlights={highlights}
             />
           )}
         </AnimatePresence>

@@ -1,5 +1,6 @@
 import type { BotLevel, GameAction, GameEvent, GameSettings, GameView, Suit } from '../types/game'
 import { SUITS } from '../types/game'
+import type { Highlight } from '../engine/highlights'
 
 export const WS_PATH = '/ws'
 export const MAX_NAME_LENGTH = 16
@@ -174,7 +175,8 @@ export type ServerMessage =
   | { t: 'welcome'; code: string; playerId: string; sessionId: string }
   | { t: 'watching'; code: string }
   | { t: 'lobby'; lobby: LobbyView }
-  | { t: 'game'; view: GameView; events: GameEvent[] }
+  /** highlights: only once the match is over. */
+  | { t: 'game'; view: GameView; events: GameEvent[]; highlights?: Highlight[] }
   | { t: 'left'; reason: 'left' | 'kicked' | 'expired' }
   | { t: 'error'; code: ErrorCode; message: string }
   | { t: 'cheer'; from: string; emoji: Reaction; targetId: string | null; spectator: boolean }
