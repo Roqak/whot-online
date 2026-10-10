@@ -18,6 +18,25 @@ copies it into `android/app/src/main/assets/`, then runs Gradle
 `android/app/build/outputs/apk/debug/app-debug.apk` and is copied to
 `android/LastCard-debug.apk`.
 
+### Release (Play Store)
+
+```bash
+npm run build:android:release
+```
+
+Same portal steps, then `gradle bundleRelease` instead. The signed AAB lands
+in `android/LastCard-release.aab`, ready to upload to Play Console. The TV
+app has no bundled assets, so its release is just:
+
+```bash
+npm run build:tv:release   # -> android-tv/WhotTV-release.aab
+```
+
+Both release builds are signed with the Play **upload key** at the repo root:
+`upload-keystore.jks`, credentials in `upload-keystore.properties`. Both are
+gitignored — back the .jks up somewhere safe. Google Play App Signing keeps
+the real app signing key server-side; this key only signs uploads.
+
 Requires JDK 17 and an Android SDK (platform 35) — `local.properties` points
 Gradle at yours, same as [../android-tv](../android-tv).
 

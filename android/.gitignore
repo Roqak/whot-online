@@ -4,3 +4,5 @@ app/build/
 app/src/main/assets/
 local.properties
 *.apk.idsig
+upload-keystore.jks
+keystore.properties

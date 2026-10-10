@@ -1,0 +1,31 @@
+<!doctype html>
+<meta charset="utf-8">
+<style>
+  html,body{margin:0;padding:0;width:1024px;height:500px;overflow:hidden;background:#15172c;
+    font-family:'Segoe UI',system-ui,sans-serif;}
+  .wrap{display:flex;align-items:center;height:500px;padding:0 64px;box-sizing:border-box;
+    background:radial-gradient(1200px 600px at 85% 20%, #1f2240 0%, #15172c 55%);}
+  .cardstack{position:relative;width:210px;height:300px;margin-right:56px;flex-shrink:0;}
+  .card{position:absolute;width:160px;height:220px;border-radius:16px;background:#f6efe2;
+    border:5px solid #8a2a24;box-shadow:0 12px 30px rgba(0,0,0,.45);}
+  .c1{left:60px;top:20px;transform:rotate(10deg);opacity:.35;}
+  .c2{left:24px;top:0px;transform:rotate(-3deg);}
+  .tri{position:absolute;left:24px;top:0px;transform:rotate(-3deg);width:160px;height:220px;}
+  .tri:after{content:'';position:absolute;left:50%;top:52px;transform:translateX(-50%);border-left:48px solid transparent;border-right:48px solid transparent;border-bottom:84px solid #8a2a24;}
+  .txt h1{margin:0;color:#f6efe2;font-size:74px;font-weight:800;letter-spacing:2px;line-height:1.05;}
+  .txt h2{margin:14px 0 0;color:#8a93c9;font-size:30px;font-weight:400;}
+  .badge{display:inline-block;margin-top:26px;padding:8px 18px;border-radius:999px;
+    border:2px solid #8a2a24;color:#f6efe2;font-size:22px;}
+</style>
+<div class="wrap">
+  <div class="cardstack">
+    <div class="card c1"></div>
+    <div class="card"></div>
+    <div class="tri"></div>
+  </div>
+  <div class="txt">
+    <h1>LAST CARD</h1>
+    <h2>Play Whot with your people</h2>
+    <div class="badge">Online &middot; 3D table &middot; No signup</div>
+  </div>
+</div>

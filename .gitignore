@@ -42,3 +42,8 @@ vite.https.config.ts
 
 # Google Play Developer API service account key
 /play-service-account.json
+
+# Release builds and store binaries (kept locally, uploaded to stores, never committed)
+*.aab
+/.store/*.zip
+/.store/*.png
