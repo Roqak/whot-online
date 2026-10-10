@@ -218,3 +218,80 @@ describe('RoomManager', () => {
     expect(watcher.last('error')?.code).toBe('room_not_found')
   })
 })
+
+describe('voice chat signalling', () => {
+  let manager: RoomManager
+  const iceServers = [{ urls: 'turn:turn.example:3478', username: 'u', credential: 'c' }]
+
+  beforeEach(() => {
+    manager = new RoomManager({ rng: seededRng(7), iceServers: async () => iceServers })
+  })
+  afterEach(() => manager.dispose())
+
+  const send = (client: Client, msg: ClientMessage) => manager.handleMessage(client, msg)
+  const flush = () => new Promise((resolve) => setTimeout(resolve, 0))
+
+  async function table() {
+    const host = new FakeClient()
+    send(host, { t: 'create', name: 'Ada', avatar: 'lion' })
+    const code = host.last('welcome')!.code
+    const guest = new FakeClient()
+    send(guest, { t: 'join', code, name: 'Bayo', avatar: 'fox' })
+    const watcher = new FakeClient()
+    send(watcher, { t: 'watch', code, name: 'Tola' })
+    return { host, guest, watcher, hostId: host.last('welcome')!.playerId, guestId: guest.last('welcome')!.playerId }
+  }
+
+  it('sends ICE servers before announcing a player in voice', async () => {
+    const { host, guest, hostId } = await table()
+    send(host, { t: 'voice', on: true })
+    await flush()
+    const iceIndex = host.messages.findIndex((m) => m.t === 'ice')
+    const lobbyIndex = host.messages.findIndex((m) => m.t === 'lobby' && m.lobby.members.find((x) => x.id === hostId)?.inVoice)
+    expect(host.last('ice')!.iceServers).toEqual(iceServers)
+    expect(iceIndex).toBeGreaterThan(-1)
+    expect(lobbyIndex).toBeGreaterThan(iceIndex)
+    expect(guest.last('lobby')!.lobby.members.find((m) => m.id === hostId)!.inVoice).toBe(true)
+  })
+
+  it('relays call setup only between two players who are both in voice', async () => {
+    const { host, guest, watcher, hostId, guestId } = await table()
+    const offer = { type: 'offer' as const, sdp: 'v=0 fake' }
+
+    send(host, { t: 'voice', on: true })
+    await flush()
+    send(host, { t: 'rtc', to: guestId, description: offer })
+    expect(guest.last('rtc')).toBeUndefined()
+
+    send(guest, { t: 'voice', on: true })
+    await flush()
+    send(host, { t: 'rtc', to: guestId, description: offer })
+    expect(guest.last('rtc')).toEqual({ t: 'rtc', from: hostId, description: offer })
+    expect(watcher.last('rtc')).toBeUndefined()
+
+    // Spectators can't take part in voice.
+    send(watcher, { t: 'voice', on: true })
+    expect(watcher.last('error')?.code).toBe('forbidden')
+  })
+
+  it('drops a player from voice when they leave voice or disconnect', async () => {
+    const { host, guest, hostId, guestId } = await table()
+    send(host, { t: 'voice', on: true })
+    send(guest, { t: 'voice', on: true })
+    await flush()
+    send(guest, { t: 'voice', on: false })
+    expect(host.last('lobby')!.lobby.members.find((m) => m.id === guestId)!.inVoice).toBe(false)
+
+    manager.handleDisconnect(host)
+    expect(guest.last('lobby')!.lobby.members.find((m) => m.id === hostId)!.inVoice).toBe(false)
+  })
+
+  it('ignores a voice join that finishes after the player has left', async () => {
+    const { host, guest, guestId } = await table()
+    send(guest, { t: 'voice', on: true })
+    send(guest, { t: 'leave' })
+    await flush()
+    expect(guest.last('ice')).toBeUndefined()
+    expect(host.last('lobby')!.lobby.members.some((m) => m.id === guestId)).toBe(false)
+  })
+})

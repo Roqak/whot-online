@@ -342,6 +342,7 @@ export class LocalTable {
         botLevel: m.botLevel,
         ready: true,
         connected: true,
+        inVoice: false,
       })),
     }
     this.emit({ t: 'lobby', lobby })

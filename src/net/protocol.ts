@@ -82,6 +82,8 @@ export interface LobbyMember {
   botLevel?: BotLevel
   ready: boolean
   connected: boolean
+  /** In the table's voice chat. Never true for bots. */
+  inVoice: boolean
 }
 
 export interface LobbyView {
@@ -93,6 +95,22 @@ export interface LobbyView {
   /** People watching without a seat. */
   watchers: number
 }
+
+/** Voice chat: servers a browser may use to reach other players (STUN, and TURN relays). */
+export interface IceServer {
+  urls: string | string[]
+  username?: string
+  credential?: string
+}
+
+/** A WebRTC session description, relayed between two players joining voice. */
+export interface RtcDescription {
+  type: 'offer' | 'answer'
+  sdp: string
+}
+
+/** SDP with every ICE candidate baked in is a few kB; this leaves headroom under the socket's payload cap. */
+export const MAX_SDP_LENGTH = 12_000
 
 export type ClientMessage =
   | { t: 'create'; name: string; avatar: string }
@@ -109,6 +127,8 @@ export type ClientMessage =
   | { t: 'nextRound' }
   | { t: 'backToLobby' }
   | { t: 'react'; emoji: Reaction; targetId?: string }
+  | { t: 'voice'; on: boolean }
+  | { t: 'rtc'; to: string; description: RtcDescription }
   | { t: 'ping' }
 
 export type ErrorCode =
@@ -128,6 +148,9 @@ export type ServerMessage =
   | { t: 'left'; reason: 'left' | 'kicked' | 'expired' }
   | { t: 'error'; code: ErrorCode; message: string }
   | { t: 'cheer'; from: string; emoji: Reaction; targetId: string | null; spectator: boolean }
+  /** Sent to a player just before they appear in voice, so they can answer the calls that follow. */
+  | { t: 'ice'; iceServers: IceServer[] }
+  | { t: 'rtc'; from: string; description: RtcDescription }
   | { t: 'pong' }
 
 const BOT_LEVELS: BotLevel[] = ['easy', 'normal', 'hard', 'expert']
@@ -184,6 +207,15 @@ export function parseClientMessage(raw: unknown): ClientMessage | null {
       if (!REACTIONS.includes(raw.emoji as Reaction)) return null
       if (raw.targetId !== undefined && !isStr(raw.targetId)) return null
       return { t: 'react', emoji: raw.emoji as Reaction, targetId: raw.targetId as string | undefined }
+    case 'voice':
+      return typeof raw.on === 'boolean' ? { t: 'voice', on: raw.on } : null
+    case 'rtc': {
+      const d = raw.description
+      if (!isStr(raw.to) || !isObj(d) || (d.type !== 'offer' && d.type !== 'answer') || !isStr(d.sdp, MAX_SDP_LENGTH)) {
+        return null
+      }
+      return { t: 'rtc', to: raw.to, description: { type: d.type, sdp: d.sdp } }
+    }
     case 'leave':
     case 'start':
     case 'nextRound':

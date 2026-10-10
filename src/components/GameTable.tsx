@@ -24,6 +24,7 @@ import { playSound, vibrate } from '../lib/sound'
 import { recordMatchResult, recordRoundWin } from '../lib/stats'
 import { crazyGameplayStart, crazyGameplayStop, crazyHappyTime, isCrazyGames } from '../lib/crazygames'
 import { Avatar } from './Avatar'
+import { VoiceControls } from './VoiceControls'
 import { ReactionPicker } from './ReactionPicker'
 import { ShapeIcon } from './cards/shapes'
 import { Announcement, Announcer } from './game/Announcer'
@@ -55,6 +56,9 @@ function Table({ view }: { view: GameView }) {
   const lastBatch = useGameStore((s) => s.lastBatch)
   const cheers = useGameStore((s) => s.cheers)
   const hostId = useGameStore((s) => s.lobby?.hostId)
+  const lobbyMembers = useGameStore((s) => s.lobby?.members)
+  const voice = useGameStore((s) => s.voice)
+  const togglePeerMute = useGameStore((s) => s.togglePeerMute)
   const roomCode = useGameStore((s) => s.session?.code ?? '')
   const watchers = useGameStore((s) => s.lobby?.watchers ?? 0)
   const isLocal = useGameStore((s) => s.isLocal)
@@ -441,6 +445,12 @@ function Table({ view }: { view: GameView }) {
                 view.phase === 'playing' && !player.eliminated && player.handCount === 1 && !player.announcedLastCard
               }
               onCatch={() => catchPlayer(player.id)}
+              voice={
+                voice.status === 'on' && lobbyMembers?.find((m) => m.id === player.id)?.inVoice
+                  ? { speaking: voice.speaking.includes(player.id), muted: voice.mutedPeers.includes(player.id) }
+                  : null
+              }
+              onToggleMute={() => togglePeerMute(player.id)}
             />
           ))}
         </div>
@@ -539,6 +549,7 @@ function Table({ view }: { view: GameView }) {
           </div>
 
           <div className="relative flex items-center gap-1">
+            <VoiceControls />
             <button className="btn-icon" onClick={cycleHandSort} aria-label={`Sort hand by ${handSort}`} title={`Sort: ${handSort}`}>
               <ArrowDownUp size={16} />
             </button>

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import QRCode from 'qrcode'
-import { Check, Copy, Crown, Eye, Loader2, LogOut, Play, QrCode, Share2, Trophy, UserMinus, UserPlus, WifiOff } from 'lucide-react'
+import { Check, Copy, Crown, Eye, Loader2, LogOut, Mic, MicOff, Play, QrCode, Share2, Trophy, UserMinus, UserPlus, Volume2, WifiOff } from 'lucide-react'
 import { toast } from 'sonner'
 import { useGameStore } from '../store/gameStore'
 import { playUrl, watchUrl } from '../net/protocol'
@@ -9,6 +9,7 @@ import { copyText, shareOrCopy } from '../lib/share'
 import { MAX_PLAYERS, MIN_PLAYERS } from '../engine/gameEngine'
 import { BotLevel, PICK_DEFENCE_LABELS, SETTING_LIMITS } from '../types/game'
 import { Avatar } from './Avatar'
+import { VoiceControls } from './VoiceControls'
 import { LeaderboardModal } from './LeaderboardModal'
 
 const BOT_LEVELS: { value: BotLevel; label: string }[] = [
@@ -24,6 +25,8 @@ export default function Lobby() {
   const leaveRoom = useGameStore((s) => s.leaveRoom)
   const setReady = useGameStore((s) => s.setReady)
   const addBot = useGameStore((s) => s.addBot)
+  const voice = useGameStore((s) => s.voice)
+  const togglePeerMute = useGameStore((s) => s.togglePeerMute)
   const removePlayer = useGameStore((s) => s.removePlayer)
   const updateSettings = useGameStore((s) => s.updateSettings)
   const startGame = useGameStore((s) => s.startGame)
@@ -144,6 +147,8 @@ export default function Lobby() {
               </span>
             )}
           </p>
+          <div className="flex items-center gap-1">
+          <VoiceControls />
           {isHost && lobby.members.length < MAX_PLAYERS && (
             <div className="relative">
               <button className="chip bg-table-800/70 text-xs text-fg-muted" onClick={() => setShowBotMenu((v) => !v)}>
@@ -174,6 +179,7 @@ export default function Lobby() {
               </AnimatePresence>
             </div>
           )}
+          </div>
         </div>
 
         <ul className="mt-2 space-y-2">
@@ -189,7 +195,12 @@ export default function Lobby() {
                   member.ready ? 'bg-leaf/10 ring-1 ring-leaf/30' : 'bg-table-800/50 ring-1 ring-table-600/30'
                 }`}
               >
-                <Avatar id={member.avatar} size={38} dimmed={!member.connected} />
+                <span className="relative shrink-0">
+                  <Avatar id={member.avatar} size={38} dimmed={!member.connected} />
+                  {voice.status === 'on' && voice.speaking.includes(member.id) && !voice.mutedPeers.includes(member.id) && (
+                    <span className="absolute -inset-1 rounded-full ring-[3px] ring-leaf" aria-hidden="true" />
+                  )}
+                </span>
                 <div className="min-w-0 flex-1">
                   <p className="flex items-center gap-1.5 truncate text-sm font-medium">
                     {member.name}
@@ -197,12 +208,23 @@ export default function Lobby() {
                     {member.isBot && (
                       <span className="chip bg-table-700 px-1.5 py-0 text-[10px] text-fg-muted">{member.botLevel}</span>
                     )}
+                    {member.inVoice && <Mic size={13} className="shrink-0 text-leaf" aria-label="In voice" />}
                   </p>
                   <p className="flex items-center gap-1 text-[11px] text-fg-faint">
                     {!member.connected && <WifiOff size={11} />}
                     {member.id === lobby.hostId ? 'Host' : member.ready ? 'Ready' : 'Not ready'}
                   </p>
                 </div>
+                {voice.status === 'on' && member.inVoice && member.id !== session.playerId && (
+                  <button
+                    className={`btn-icon ${voice.mutedPeers.includes(member.id) ? 'text-ember' : ''}`}
+                    onClick={() => togglePeerMute(member.id)}
+                    aria-pressed={voice.mutedPeers.includes(member.id)}
+                    aria-label={voice.mutedPeers.includes(member.id) ? `Unmute ${member.name}` : `Mute ${member.name}`}
+                  >
+                    {voice.mutedPeers.includes(member.id) ? <MicOff size={16} /> : <Volume2 size={16} />}
+                  </button>
+                )}
                 {member.id === session.playerId && !isHost ? (
                   <button
                     className={`rounded-lg px-3 py-1.5 text-xs font-semibold ${

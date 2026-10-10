@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion'
-import { Bot, WifiOff } from 'lucide-react'
+import { Bot, Mic, MicOff, WifiOff } from 'lucide-react'
 import type { PublicPlayer } from '../../types/game'
 import { Avatar } from '../Avatar'
 import { TurnRing } from './TurnRing'
@@ -11,12 +11,16 @@ interface OpponentSeatProps {
   urgent: boolean
   catchable: boolean
   onCatch: () => void
+  /** Set when both you and this player are in voice. */
+  voice?: { speaking: boolean; muted: boolean } | null
+  onToggleMute?: () => void
 }
 
 const AVATAR_SIZE = 46
 
-export function OpponentSeat({ player, onTurn, fraction, urgent, catchable, onCatch }: OpponentSeatProps) {
+export function OpponentSeat({ player, onTurn, fraction, urgent, catchable, onCatch, voice, onToggleMute }: OpponentSeatProps) {
   const out = player.eliminated
+  const speaking = !!voice?.speaking && !voice.muted
   return (
     <div
       data-seat={player.id}
@@ -24,8 +28,38 @@ export function OpponentSeat({ player, onTurn, fraction, urgent, catchable, onCa
         onTurn ? 'bg-marigold/10 ring-1 ring-marigold/40' : ''
       }`}
     >
-      <div className="relative" style={{ width: AVATAR_SIZE, height: AVATAR_SIZE }}>
+      <div
+        className="relative"
+        style={{ width: AVATAR_SIZE, height: AVATAR_SIZE, cursor: voice ? 'pointer' : undefined }}
+        // In voice, tapping someone mutes them for you (and tapping again brings them back).
+        {...(voice
+          ? {
+              role: 'button',
+              tabIndex: 0,
+              'aria-pressed': voice.muted,
+              'aria-label': voice.muted ? `Unmute ${player.name}` : `Mute ${player.name}`,
+              onClick: onToggleMute,
+              onKeyDown: (e: React.KeyboardEvent) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault()
+                  onToggleMute?.()
+                }
+              },
+            }
+          : {})}
+      >
         <Avatar id={player.avatar} size={AVATAR_SIZE} dimmed={out || !player.connected} />
+        {speaking && <span className="absolute -inset-1 rounded-full ring-[3px] ring-leaf" aria-hidden="true" />}
+        {voice && (
+          <span
+            className={`absolute -right-1 -top-1 rounded-full p-[3px] ${
+              voice.muted ? 'bg-ember text-table-950' : speaking ? 'bg-leaf text-table-950' : 'bg-table-950 text-fg-muted'
+            }`}
+            title={voice.muted ? 'Muted by you' : speaking ? 'Talking' : 'In voice'}
+          >
+            {voice.muted ? <MicOff size={11} /> : <Mic size={11} />}
+          </span>
+        )}
         <TurnRing size={AVATAR_SIZE} fraction={fraction} active={onTurn} urgent={urgent} />
         {onTurn && <span className="absolute inset-0 rounded-full ring-2 ring-marigold/50 animate-pulse-ring" />}
         {!player.connected && !out && (

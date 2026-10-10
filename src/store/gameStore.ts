@@ -7,6 +7,7 @@ import { playSound, setSoundEnabled } from '../lib/sound'
 import { ConnectionStatus, GameConnection, socketUrl } from '../net/connection'
 import { LocalTable } from '../net/localTable'
 import { ClientMessage, LobbyView, Reaction, ServerMessage, normalizeRoomCode } from '../net/protocol'
+import { VoiceChat, voiceSupported } from '../net/voice'
 
 /**
  * The portal build has no server: the game runs in the browser instead.
@@ -43,6 +44,18 @@ export interface Cheer {
 
 export type HandSort = 'shape' | 'number' | 'none'
 
+export interface VoiceState {
+  /** off: not in voice. joining: asking for the mic / waiting for the server. on: in voice. */
+  status: 'off' | 'joining' | 'on'
+  muted: boolean
+  /** Player ids talking right now (yours included). */
+  speaking: string[]
+  /** Players you've muted for yourself. */
+  mutedPeers: string[]
+}
+
+const VOICE_OFF: VoiceState = { status: 'off', muted: false, speaking: [], mutedPeers: [] }
+
 interface StoreState {
   status: ConnectionStatus
   profile: Profile
@@ -68,6 +81,9 @@ interface StoreState {
   isCrazyGames: boolean
   /** Solo mode only: bot moves and turn/round timers are frozen. */
   paused: boolean
+  /** Table voice chat: online tables only. */
+  voice: VoiceState
+  canUseVoice: boolean
 
   setProfile: (profile: Partial<Profile>) => void
   /** Portal builds default to solo; this opts into a real online table for the rest of the session. */
@@ -95,6 +111,10 @@ interface StoreState {
   toggleSound: () => void
   cycleHandSort: () => void
   clearFormError: () => void
+  joinVoice: () => Promise<void>
+  leaveVoice: () => void
+  toggleVoiceMute: () => void
+  togglePeerMute: (playerId: string) => void
 }
 
 const storage = {
@@ -136,6 +156,7 @@ function setUrl(path: string) {
 }
 
 let connection: GameConnection | null = null
+let voiceChat: VoiceChat | null = null
 let localTable: LocalTable | null = null
 let quickPlayConfig: { bots: number } | null = null
 let batchSeq = 0
@@ -165,7 +186,22 @@ export const useGameStore = create<StoreState>((set, get) => {
     connection.send(msg)
   }
 
+  /** Point the voice mesh at everyone else at the table who is in voice right now. */
+  const syncVoice = () => {
+    const { lobby, session } = get()
+    if (!voiceChat || !lobby || !session) return
+    voiceChat.setMyId(session.playerId)
+    voiceChat.sync(lobby.members.filter((m) => m.inVoice && m.connected && m.id !== session.playerId).map((m) => m.id))
+  }
+
+  const stopVoice = () => {
+    voiceChat?.stop()
+    voiceChat = null
+    set({ voice: VOICE_OFF })
+  }
+
   const clearRoom = () => {
+    stopVoice()
     storage.set(tab, 'whot:session', null)
     storage.set(tab, 'whot:watching', null)
     set({
@@ -192,6 +228,8 @@ export const useGameStore = create<StoreState>((set, get) => {
         storage.set(tab, 'whot:watching', null)
         set({ session, watching: null, busy: null, formError: null, inviteCode: null })
         setUrl(`/r/${msg.code}`)
+        // Back after a dropped connection: the server forgot we were in voice.
+        if (voiceChat) send({ t: 'voice', on: true })
         if (quickPlayConfig) {
           const count = quickPlayConfig.bots
           quickPlayConfig = null
@@ -214,6 +252,16 @@ export const useGameStore = create<StoreState>((set, get) => {
           game: msg.lobby.inGame ? s.game : null,
           pendingCardId: msg.lobby.inGame ? s.pendingCardId : null,
         }))
+        syncVoice()
+        break
+      case 'ice':
+        if (!voiceChat) break
+        voiceChat.setIceServers(msg.iceServers)
+        set((s) => ({ voice: { ...s.voice, status: 'on' } }))
+        syncVoice()
+        break
+      case 'rtc':
+        void voiceChat?.handleDescription(msg.from, msg.description)
         break
       case 'game':
         set({
@@ -307,6 +355,8 @@ export const useGameStore = create<StoreState>((set, get) => {
     isPortal: LOCAL_ONLY,
     isCrazyGames,
     paused: false,
+    voice: VOICE_OFF,
+    canUseVoice: !LOCAL_ONLY && voiceSupported(),
 
     setProfile: (patch) => {
       const next = { ...get().profile, ...patch }
@@ -413,5 +463,67 @@ export const useGameStore = create<StoreState>((set, get) => {
     },
 
     clearFormError: () => set({ formError: null }),
+
+    joinVoice: async () => {
+      const { session, isLocal, canUseVoice, voice } = get()
+      if (!session || isLocal || !canUseVoice || voice.status !== 'off') return
+      set({ voice: { ...VOICE_OFF, status: 'joining' } })
+      const chat = new VoiceChat((to, description) => send({ t: 'rtc', to, description }), {
+        speaking: (ids) => set((s) => ({ voice: { ...s.voice, speaking: ids } })),
+        peerFailed: (id) => {
+          const name = get().lobby?.members.find((m) => m.id === id)?.name ?? 'someone'
+          toast(`Couldn't connect voice with ${name}`, { id: `voice-${id}` })
+        },
+      })
+      try {
+        await chat.start()
+      } catch (err) {
+        chat.stop()
+        set({ voice: VOICE_OFF })
+        const denied = err instanceof DOMException && (err.name === 'NotAllowedError' || err.name === 'SecurityError')
+        toast.error(
+          denied
+            ? 'Microphone blocked. Allow it in your browser settings to join voice.'
+            : 'No microphone found for voice chat.',
+          { id: 'voice-error' },
+        )
+        return
+      }
+      // Left the room while the mic prompt was open.
+      if (!get().session) {
+        chat.stop()
+        set({ voice: VOICE_OFF })
+        return
+      }
+      voiceChat = chat
+      chat.setMyId(get().session!.playerId)
+      send({ t: 'voice', on: true })
+    },
+
+    leaveVoice: () => {
+      if (!voiceChat) return
+      send({ t: 'voice', on: false })
+      stopVoice()
+    },
+
+    toggleVoiceMute: () => {
+      if (!voiceChat) return
+      const muted = !get().voice.muted
+      voiceChat.setMuted(muted)
+      set((s) => ({ voice: { ...s.voice, muted } }))
+    },
+
+    togglePeerMute: (playerId) => {
+      if (!voiceChat) return
+      const mutedPeers = get().voice.mutedPeers
+      const muted = !mutedPeers.includes(playerId)
+      voiceChat.setPeerMuted(playerId, muted)
+      set((s) => ({
+        voice: {
+          ...s.voice,
+          mutedPeers: muted ? [...mutedPeers, playerId] : mutedPeers.filter((id) => id !== playerId),
+        },
+      }))
+    },
   }
 })

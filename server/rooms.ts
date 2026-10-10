@@ -3,6 +3,7 @@ import {
   ClientMessage,
   ErrorCode,
   LobbyView,
+  RtcDescription,
   Reaction,
   ServerMessage,
   cleanName,
@@ -27,6 +28,7 @@ import { BOT_CATCH, BOT_NAMES, chooseBotMove } from '../src/engine/bot'
 import { BOT_AVATAR, isValidAvatar } from '../src/lib/avatars'
 import { BotLevel, DEFAULT_SETTINGS, GameEvent, GameSettings, GameState, sanitizeSettings } from '../src/types/game'
 import { leaderboard } from './leaderboard'
+import { IceServerProvider, STUN_ONLY } from './turn'
 
 export interface Client {
   send(msg: ServerMessage): void
@@ -42,6 +44,8 @@ interface Member {
   sessionId: string
   client: Client | null
   disconnectedAt: number | null
+  /** In the table's voice chat. Cleared on disconnect; the client rejoins on resume. */
+  inVoice: boolean
 }
 
 type Timer = ReturnType<typeof setTimeout>
@@ -77,6 +81,8 @@ export interface RoomManagerOptions {
   offlineTurnMs?: number
   lobbyGraceMs?: number
   gameGraceMs?: number
+  /** Where voice chat gets its STUN/TURN servers. Defaults to STUN only. */
+  iceServers?: IceServerProvider
 }
 
 const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
@@ -88,11 +94,13 @@ export class RoomManager {
   private watching = new Map<Client, string>()
   private rng: Rng
   private now: () => number
-  private opts: Required<Omit<RoomManagerOptions, 'rng' | 'now'>>
+  private opts: Required<Omit<RoomManagerOptions, 'rng' | 'now' | 'iceServers'>>
+  private iceServers: IceServerProvider
 
   constructor(options: RoomManagerOptions = {}) {
     this.rng = options.rng ?? cryptoRng
     this.now = options.now ?? Date.now
+    this.iceServers = options.iceServers ?? (async () => STUN_ONLY)
     this.opts = {
       // Slow enough that a person can follow who just did what.
       botDelayMs: options.botDelayMs ?? [1300, 2200],
@@ -188,6 +196,10 @@ export class RoomManager {
         room.deadline = null
         for (const m of room.members) m.ready = m.isBot
         return this.broadcastLobby(room)
+      case 'voice':
+        return this.setVoice(room, member, client, msg.on)
+      case 'rtc':
+        return this.relayRtc(room, member, msg.to, msg.description)
       case 'react':
         return this.cheer(room, {
           key: member.id,
@@ -209,6 +221,7 @@ export class RoomManager {
     if (member.client !== client) return
     member.client = null
     member.disconnectedAt = this.now()
+    member.inVoice = false
     this.broadcastLobby(room)
     if (room.game) {
       this.schedule(room, true)
@@ -555,6 +568,34 @@ export class RoomManager {
 
   // Messaging
 
+  /**
+   * Joining voice: the player gets the ICE servers first, and only then shows
+   * up as in voice. Everyone else calls them as soon as they see that, so the
+   * newcomer must already be able to answer.
+   */
+  private setVoice(room: Room, member: Member, client: Client, on: boolean) {
+    if (!on) {
+      if (!member.inVoice) return
+      member.inVoice = false
+      return this.broadcastLobby(room)
+    }
+    void this.iceServers().then((iceServers) => {
+      // They may have left, been kicked or reconnected while we waited.
+      if (member.client !== client || this.rooms.get(room.code) !== room || !room.members.includes(member)) return
+      client.send({ t: 'ice', iceServers })
+      if (member.inVoice) return
+      member.inVoice = true
+      this.broadcastLobby(room)
+    })
+  }
+
+  /** Passes a call setup between two players who are both in voice at the same table. */
+  private relayRtc(room: Room, member: Member, to: string, description: RtcDescription) {
+    const target = room.members.find((m) => m.id === to)
+    if (!member.inVoice || !target?.inVoice || !target.client || target === member) return
+    target.client.send({ t: 'rtc', from: member.id, description })
+  }
+
   private broadcast(room: Room, msg: ServerMessage) {
     for (const m of room.members) m.client?.send(msg)
     for (const watcher of room.watchers.keys()) watcher.send(msg)
@@ -592,6 +633,7 @@ export class RoomManager {
         botLevel: m.botLevel,
         ready: m.isBot || m.id === room.hostId || m.ready,
         connected: m.isBot || !!m.client,
+        inVoice: m.inVoice,
       })),
     }
   }
@@ -631,6 +673,7 @@ export class RoomManager {
       sessionId: randomUUID(),
       client,
       disconnectedAt: null,
+      inVoice: false,
     }
   }
 
@@ -647,6 +690,7 @@ export class RoomManager {
       sessionId: '',
       client: null,
       disconnectedAt: null,
+      inVoice: false,
     }
   }
 

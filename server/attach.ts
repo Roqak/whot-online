@@ -2,6 +2,7 @@ import type { Server } from 'node:http'
 import { WebSocketServer, WebSocket } from 'ws'
 import { WS_PATH, parseClientMessage } from '../src/net/protocol'
 import { Client, RoomManager } from './rooms'
+import { cloudflareIceServers } from './turn'
 
 const MAX_PAYLOAD_BYTES = 16 * 1024
 const HEARTBEAT_MS = 30_000
@@ -10,7 +11,7 @@ const RATE_BURST = 30
 const RATE_PER_SECOND = 15
 
 /** Mounts the Whot game server on an existing HTTP server at WS_PATH. */
-export function attachGameServer(server: Server, manager = new RoomManager()) {
+export function attachGameServer(server: Server, manager = new RoomManager({ iceServers: cloudflareIceServers() })) {
   const wss = new WebSocketServer({ noServer: true, maxPayload: MAX_PAYLOAD_BYTES })
   const alive = new WeakSet<WebSocket>()
 
