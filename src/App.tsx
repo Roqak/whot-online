@@ -16,6 +16,7 @@ import Lab8 from './lab8/Lab8'
 import Lab9 from './lab9/Lab9'
 import Lab10 from './lab10/Lab10'
 import Lab11 from './lab11/Lab11'
+import IsometricTable from './components/isometric/IsometricTable'
 import { ConnectionBanner } from './components/ConnectionBanner'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import { useGameStore } from './store/gameStore'
@@ -36,6 +37,7 @@ const LABS: Record<string, ComponentType> = {
   '#/lab9': Lab9,
   '#/lab10': Lab10,
   '#/lab11': Lab11,
+  '#/iso': IsometricTable,
 }
 
 export default function App() {
