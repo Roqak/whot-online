@@ -180,7 +180,18 @@
       ;(function () {
         // Every error that reaches the window lands in #jslog, which sits
         // above everything and survives a React crash. Tap it to clear.
+        // Players never see it: it's on at localhost, or on a phone after
+        // opening the site with ?debug=1 (remembered until ?debug=0), so a
+        // player can show us the error in a screenshot when we ask.
         var log = document.getElementById('jslog')
+        var debug = /^(localhost|127\.0\.0\.1)$/.test(location.hostname)
+        try {
+          var flag = /[?&]debug=([01])/.exec(location.search)
+          if (flag) localStorage.setItem('whot:debug', flag[1])
+          if (localStorage.getItem('whot:debug') === '1') debug = true
+          if (localStorage.getItem('whot:debug') === '0') debug = false
+        } catch (e) {}
+        if (log && !debug) log.dataset.off = '1'
         function note() {
           if (!log || log.dataset.off) return
           log.textContent += Array.prototype.slice.call(arguments).join(' ') + '\n'
