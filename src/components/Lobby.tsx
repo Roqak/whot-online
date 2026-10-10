@@ -10,6 +10,7 @@ import { MAX_PLAYERS, MIN_PLAYERS } from '../engine/gameEngine'
 import { BotLevel, PICK_DEFENCE_LABELS, SETTING_LIMITS } from '../types/game'
 import { Avatar } from './Avatar'
 import { VoiceControls } from './VoiceControls'
+import { isCrewMate, joinNames } from '../lib/crew'
 import { LeaderboardModal } from './LeaderboardModal'
 
 const BOT_LEVELS: { value: BotLevel; label: string }[] = [
@@ -27,6 +28,8 @@ export default function Lobby() {
   const addBot = useGameStore((s) => s.addBot)
   const voice = useGameStore((s) => s.voice)
   const togglePeerMute = useGameStore((s) => s.togglePeerMute)
+  const crew = useGameStore((s) => s.crew)
+  const crewInvite = useGameStore((s) => s.crewInvite)
   const removePlayer = useGameStore((s) => s.removePlayer)
   const updateSettings = useGameStore((s) => s.updateSettings)
   const startGame = useGameStore((s) => s.startGame)
@@ -70,7 +73,11 @@ export default function Lobby() {
   }
 
   const share = async () => {
-    await shareOrCopy('Come play Whot with me on Last Card!', roomUrl)
+    // Dealt from "Your crew": call them by name, so it reads right in a group chat.
+    const text = crewInvite?.length
+      ? `${joinNames(crewInvite)}: ${me?.name ?? 'I'}’s dealing Whot on Last Card. Run it back 👇`
+      : 'Come play Whot with me on Last Card!'
+    await shareOrCopy(text, roomUrl)
   }
 
   return (
@@ -209,6 +216,9 @@ export default function Lobby() {
                       <span className="chip bg-table-700 px-1.5 py-0 text-[10px] text-fg-muted">{member.botLevel}</span>
                     )}
                     {member.inVoice && <Mic size={13} className="shrink-0 text-leaf" aria-label="In voice" />}
+                    {!member.isBot && member.id !== session.playerId && isCrewMate(crew, member.name) && (
+                      <span className="chip bg-marigold/15 px-1.5 py-0 text-[10px] font-semibold text-marigold">crew</span>
+                    )}
                   </p>
                   <p className="flex items-center gap-1 text-[11px] text-fg-faint">
                     {!member.connected && <WifiOff size={11} />}

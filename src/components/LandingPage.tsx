@@ -5,6 +5,7 @@ import { useGameStore } from '../store/gameStore'
 import { AVATARS } from '../lib/avatars'
 import { MAX_NAME_LENGTH } from '../net/protocol'
 import { Avatar } from './Avatar'
+import { joinNames } from '../lib/crew'
 import { LeaderboardModal } from './LeaderboardModal'
 import { WhotCard } from './cards/WhotCard'
 
@@ -27,6 +28,11 @@ export default function LandingPage() {
   const isCrazyGames = useGameStore((s) => s.isCrazyGames)
   const goOnline = useGameStore((s) => s.goOnline)
   const goLocal = useGameStore((s) => s.goLocal)
+  const crew = useGameStore((s) => s.crew)
+  const dealCrew = useGameStore((s) => s.dealCrew)
+  // The people from your last online game; they're who you most likely want back.
+  const lastGroup = crew.length ? crew.filter((c) => c.lastPlayed === crew[0].lastPlayed).slice(0, 5) : []
+  const showCrew = lastGroup.length > 0 && !isLocal && !isCrazyGames
 
   const [code, setCode] = useState(inviteCode ?? '')
   const [showJoin, setShowJoin] = useState(!!inviteCode)
@@ -212,6 +218,31 @@ export default function LandingPage() {
           </>
         )}
       </div>
+
+      {showCrew && !showJoin && (
+        <section className="flex items-center gap-3 rounded-2xl bg-table-900/70 px-3 py-2.5 ring-1 ring-table-600/40" aria-label="Your crew">
+          <div className="flex shrink-0 -space-x-2">
+            {lastGroup.slice(0, 3).map((c) => (
+              <span key={c.name} className="rounded-full ring-2 ring-table-900">
+                <Avatar id={c.avatar} size={30} />
+              </span>
+            ))}
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-sm font-semibold">{joinNames(lastGroup.map((c) => c.name))}</p>
+            <p className="text-xs text-fg-muted">
+              Your crew · {lastGroup[0].games} {lastGroup[0].games === 1 ? 'game' : 'games'} together
+            </p>
+          </div>
+          <button
+            className="btn-ghost shrink-0 px-3 text-sm"
+            disabled={busy !== null}
+            onClick={() => dealCrew(lastGroup.map((c) => c.name))}
+          >
+            Deal them in
+          </button>
+        </section>
+      )}
 
       <p className="text-center text-[11px] text-fg-faint">
         {isCrazyGames

@@ -9,6 +9,7 @@ import { LocalTable } from '../net/localTable'
 import { ClientMessage, LobbyView, PhraseId, Reaction, ServerMessage, normalizeRoomCode, phraseText } from '../net/protocol'
 import { VoiceChat, voiceSupported } from '../net/voice'
 import type { Highlight } from '../engine/highlights'
+import { CrewMate, loadCrew, recordCrew } from '../lib/crew'
 
 /**
  * The portal build has no server: the game runs in the browser instead.
@@ -79,6 +80,10 @@ interface StoreState {
   said: Said[]
   /** The finished match's best moments; null while a match is going. */
   highlights: Highlight[] | null
+  /** People you've played online with, from this device. */
+  crew: CrewMate[]
+  /** Names to call out in this table's invite, after "Deal them in". */
+  crewInvite: string[] | null
   /** Card sent to the server but not yet confirmed; shown as already played. */
   pendingCardId: string | null
   busy: 'create' | 'join' | 'quick' | 'watch' | null
@@ -122,6 +127,8 @@ interface StoreState {
   rematch: (on: boolean) => void
   cheer: (emoji: Reaction, targetId?: string) => void
   say: (phrase: PhraseId) => void
+  /** New table, with these crew mates named in its invite. */
+  dealCrew: (names: string[]) => void
   pauseGame: () => void
   resumeGame: () => void
   toggleSound: () => void
@@ -231,6 +238,7 @@ export const useGameStore = create<StoreState>((set, get) => {
       cheers: [],
       said: [],
       highlights: null,
+      crewInvite: null,
       // Back to the app's offline default once a room's left, so opting into
       // an online table is a fresh choice each time rather than sticky.
       isLocal: LOCAL_ONLY,
@@ -264,7 +272,13 @@ export const useGameStore = create<StoreState>((set, get) => {
         set({ watching: msg.code, session: null, busy: null, formError: null })
         setUrl(`/w/${msg.code}`)
         break
-      case 'lobby':
+      case 'lobby': {
+        // A match just started online: everyone else at the table is crew now.
+        const { lobby: before, session, isLocal } = get()
+        if (msg.lobby.inGame && !before?.inGame && session && !isLocal) {
+          const others = msg.lobby.members.filter((m) => !m.isBot && m.id !== session.playerId)
+          if (others.length) set({ crew: recordCrew(others) })
+        }
         set((s) => ({
           lobby: msg.lobby,
           game: msg.lobby.inGame ? s.game : null,
@@ -272,6 +286,7 @@ export const useGameStore = create<StoreState>((set, get) => {
         }))
         syncVoice()
         break
+      }
       case 'ice':
         if (!voiceChat) break
         voiceChat.setIceServers(msg.iceServers)
@@ -375,6 +390,8 @@ export const useGameStore = create<StoreState>((set, get) => {
     cheers: [],
     said: [],
     highlights: null,
+    crew: LOCAL_ONLY ? [] : loadCrew(),
+    crewInvite: null,
     pendingCardId: null,
     busy: watchCode ? 'watch' : null,
     formError: null,
@@ -465,6 +482,10 @@ export const useGameStore = create<StoreState>((set, get) => {
     rematch: (on) => send({ t: 'rematch', on }),
     cheer: (emoji, targetId) => send({ t: 'react', emoji, targetId }),
     say: (phrase) => send({ t: 'say', phrase }),
+    dealCrew: (names) => {
+      set({ isLocal: false, crewInvite: names })
+      get().createRoom()
+    },
 
     // Only solo (LocalTable) games can pause: there's no other player whose
     // clock it would unfairly stop. Bypasses `send`/ClientMessage since the
