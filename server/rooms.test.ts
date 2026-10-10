@@ -295,3 +295,67 @@ describe('voice chat signalling', () => {
     expect(host.last('lobby')!.lobby.members.some((m) => m.id === guestId)).toBe(false)
   })
 })
+
+describe('run it back (rematch)', () => {
+  let manager: RoomManager
+  beforeEach(() => {
+    vi.useFakeTimers()
+    manager = new RoomManager({ rng: seededRng(3), botDelayMs: [10, 10] })
+  })
+  afterEach(() => {
+    manager.dispose()
+    vi.useRealTimers()
+  })
+  const send = (client: Client, msg: ClientMessage) => manager.handleMessage(client, msg)
+
+  function finishedMatch() {
+    const host = new FakeClient()
+    send(host, { t: 'create', name: 'Ada', avatar: 'lion' })
+    const code = host.last('welcome')!.code
+    const guest = new FakeClient()
+    send(guest, { t: 'join', code, name: 'Bayo', avatar: 'fox' })
+    send(host, { t: 'addBot', level: 'easy' })
+    send(guest, { t: 'ready', ready: true })
+    send(host, { t: 'start' })
+    const room = manager.getRoom(code)!
+    room.game = { ...room.game!, phase: 'matchOver' }
+    return { host, guest, room }
+  }
+
+  it('deals the same table again once every person votes', () => {
+    const { host, guest, room } = finishedMatch()
+    const before = room.game
+    send(host, { t: 'rematch', on: true })
+    expect(room.game).toBe(before)
+    expect(guest.last('lobby')!.lobby.members.find((m) => m.name === 'Ada')!.rematch).toBe(true)
+
+    send(guest, { t: 'rematch', on: true })
+    expect(room.game).not.toBe(before)
+    expect(room.game!.phase).toBe('playing')
+    expect(room.game!.players.map((p) => p.name)).toEqual(['Ada', 'Bayo', 'Tunde'])
+    expect(host.last('lobby')!.lobby.members.every((m) => !m.rematch)).toBe(true)
+  })
+
+  it('lets a vote be taken back', () => {
+    const { host, guest, room } = finishedMatch()
+    send(host, { t: 'rematch', on: true })
+    send(host, { t: 'rematch', on: false })
+    send(guest, { t: 'rematch', on: true })
+    expect(room.game!.phase).toBe('matchOver')
+  })
+
+  it("doesn't wait for someone who left or dropped", () => {
+    const { host, guest, room } = finishedMatch()
+    send(host, { t: 'rematch', on: true })
+    manager.handleDisconnect(guest)
+    expect(room.game!.phase).toBe('playing')
+  })
+
+  it('ignores votes while a match is still going', () => {
+    const { host, guest, room } = finishedMatch()
+    room.game = { ...room.game!, phase: 'playing' }
+    send(host, { t: 'rematch', on: true })
+    send(guest, { t: 'rematch', on: true })
+    expect(host.last('lobby')!.lobby.members.every((m) => !m.rematch)).toBe(true)
+  })
+})

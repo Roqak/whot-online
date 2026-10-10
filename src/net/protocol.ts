@@ -84,6 +84,8 @@ export interface LobbyMember {
   connected: boolean
   /** In the table's voice chat. Never true for bots. */
   inVoice: boolean
+  /** Match over: this player tapped "Run it back". */
+  rematch: boolean
 }
 
 export interface LobbyView {
@@ -128,6 +130,7 @@ export type ClientMessage =
   | { t: 'backToLobby' }
   | { t: 'react'; emoji: Reaction; targetId?: string }
   | { t: 'voice'; on: boolean }
+  | { t: 'rematch'; on: boolean }
   | { t: 'rtc'; to: string; description: RtcDescription }
   | { t: 'ping' }
 
@@ -208,7 +211,8 @@ export function parseClientMessage(raw: unknown): ClientMessage | null {
       if (raw.targetId !== undefined && !isStr(raw.targetId)) return null
       return { t: 'react', emoji: raw.emoji as Reaction, targetId: raw.targetId as string | undefined }
     case 'voice':
-      return typeof raw.on === 'boolean' ? { t: 'voice', on: raw.on } : null
+    case 'rematch':
+      return typeof raw.on === 'boolean' ? { t: raw.t, on: raw.on } : null
     case 'rtc': {
       const d = raw.description
       if (!isStr(raw.to) || !isObj(d) || (d.type !== 'offer' && d.type !== 'answer') || !isStr(d.sdp, MAX_SDP_LENGTH)) {

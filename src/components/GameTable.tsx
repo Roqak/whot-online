@@ -68,6 +68,7 @@ function Table({ view }: { view: GameView }) {
   const catchPlayer = useGameStore((s) => s.catchPlayer)
   const nextRound = useGameStore((s) => s.nextRound)
   const backToLobby = useGameStore((s) => s.backToLobby)
+  const rematch = useGameStore((s) => s.rematch)
   const leaveRoom = useGameStore((s) => s.leaveRoom)
   const cheer = useGameStore((s) => s.cheer)
   const cycleHandSort = useGameStore((s) => s.cycleHandSort)
@@ -509,6 +510,11 @@ function Table({ view }: { view: GameView }) {
               onNextRound={nextRound}
               onBackToLobby={backToLobby}
               onLeave={leaveRoom}
+              rematch={{
+                // People who can still vote: everyone connected who isn't a bot.
+                voters: (lobbyMembers ?? []).filter((m) => !m.isBot && m.connected),
+                onVote: rematch,
+              }}
             />
           )}
         </AnimatePresence>

@@ -109,6 +109,13 @@ export class LocalTable {
       }
       case 'nextRound':
         return this.advanceRound()
+      case 'rematch':
+        // Solo: you're the only vote.
+        if (this.game?.phase !== 'matchOver' || !msg.on) return
+        this.clearTimers()
+        this.game = null
+        this.deadline = null
+        return this.start()
       case 'backToLobby':
         if (this.game?.phase !== 'matchOver') return
         this.clearTimers()
@@ -343,6 +350,7 @@ export class LocalTable {
         ready: true,
         connected: true,
         inVoice: false,
+        rematch: false,
       })),
     }
     this.emit({ t: 'lobby', lobby })

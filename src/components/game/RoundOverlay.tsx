@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import { motion } from 'framer-motion'
-import { Trophy } from 'lucide-react'
+import { Check, Loader2, RotateCcw, Trophy } from 'lucide-react'
 import type { GameView } from '../../types/game'
+import type { LobbyMember } from '../../net/protocol'
 import { Avatar } from '../Avatar'
 import { LeaderboardModal } from '../LeaderboardModal'
 import { WhotCard } from '../cards/WhotCard'
@@ -13,9 +14,10 @@ interface RoundOverlayProps {
   onNextRound: () => void
   onBackToLobby: () => void
   onLeave: () => void
+  rematch: { voters: LobbyMember[]; onVote: (on: boolean) => void }
 }
 
-export function RoundOverlay({ view, isHost, secondsLeft, onNextRound, onBackToLobby, onLeave }: RoundOverlayProps) {
+export function RoundOverlay({ view, isHost, secondsLeft, onNextRound, onBackToLobby, onLeave, rematch }: RoundOverlayProps) {
   const result = view.lastRound
   const matchOver = view.phase === 'matchOver'
   const championId = view.matchWinnerId
@@ -23,6 +25,9 @@ export function RoundOverlay({ view, isHost, secondsLeft, onNextRound, onBackToL
   const winnerId = matchOver ? (championId ?? result?.winnerId) : result?.winnerId
   const iWon = winnerId === view.myId
   const [showLeaderboard, setShowLeaderboard] = useState(false)
+  const iVoted = rematch.voters.some((m) => m.id === view.myId && m.rematch)
+  const votes = rematch.voters.filter((m) => m.rematch).length
+  const waitingOn = rematch.voters.filter((m) => !m.rematch).map((m) => m.name)
 
   return (
     <motion.div
@@ -102,8 +107,19 @@ export function RoundOverlay({ view, isHost, secondsLeft, onNextRound, onBackToL
         <div className="mt-5 flex gap-2">
           {matchOver ? (
             <>
-              <button className="btn-primary flex-1" onClick={isHost ? onBackToLobby : onLeave}>
-                {isHost ? 'Play again' : 'Leave table'}
+              {/* Same table, same settings, deal again as soon as everyone's in. */}
+              <button
+                className={iVoted ? 'btn-ghost flex-1 text-leaf' : 'btn-primary flex-1'}
+                onClick={() => rematch.onVote(!iVoted)}
+                aria-pressed={iVoted}
+              >
+                {iVoted ? <Loader2 size={17} className="animate-spin" /> : <RotateCcw size={17} />}
+                {iVoted ? 'Waiting…' : 'Run it back'}
+                {rematch.voters.length > 1 && (
+                  <span className="tabular-nums opacity-70">
+                    {votes}/{rematch.voters.length}
+                  </span>
+                )}
               </button>
               <button
                 className="btn-ghost"
@@ -113,11 +129,9 @@ export function RoundOverlay({ view, isHost, secondsLeft, onNextRound, onBackToL
               >
                 <Trophy size={16} />
               </button>
-              {isHost && (
-                <button className="btn-ghost" onClick={onLeave}>
-                  Leave
-                </button>
-              )}
+              <button className="btn-ghost" onClick={onLeave}>
+                Leave
+              </button>
             </>
           ) : isHost ? (
             <button className="btn-primary flex-1" onClick={onNextRound}>
@@ -131,6 +145,28 @@ export function RoundOverlay({ view, isHost, secondsLeft, onNextRound, onBackToL
         </div>
         {!matchOver && !isHost && (
           <p className="mt-2 text-center text-xs text-fg-faint">The host can start it sooner</p>
+        )}
+        {matchOver && rematch.voters.length > 1 && (
+          <div className="mt-3 flex items-center justify-center gap-1.5" aria-label="Who wants a rematch">
+            {rematch.voters.map((m) => (
+              <span key={m.id} className="relative" title={m.rematch ? `${m.name} is in` : `Waiting for ${m.name}`}>
+                <Avatar id={m.avatar} size={26} dimmed={!m.rematch} />
+                {m.rematch && (
+                  <span className="absolute -bottom-0.5 -right-0.5 rounded-full bg-leaf p-px text-table-950">
+                    <Check size={10} strokeWidth={3} />
+                  </span>
+                )}
+              </span>
+            ))}
+          </div>
+        )}
+        {matchOver && iVoted && waitingOn.length > 0 && (
+          <p className="mt-1.5 text-center text-xs text-fg-muted">Waiting for {waitingOn.join(', ')}</p>
+        )}
+        {matchOver && isHost && (
+          <button className="mx-auto mt-2 block py-1 text-xs text-fg-faint underline underline-offset-2 hover:text-fg" onClick={onBackToLobby}>
+            Change table rules first
+          </button>
         )}
 
         <LeaderboardModal

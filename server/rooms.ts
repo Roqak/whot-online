@@ -46,6 +46,8 @@ interface Member {
   disconnectedAt: number | null
   /** In the table's voice chat. Cleared on disconnect; the client rejoins on resume. */
   inVoice: boolean
+  /** Voted to run the match back once it's over. */
+  rematch: boolean
 }
 
 type Timer = ReturnType<typeof setTimeout>
@@ -194,10 +196,18 @@ export class RoomManager {
         this.clearTimers(room)
         room.game = null
         room.deadline = null
-        for (const m of room.members) m.ready = m.isBot
+        for (const m of room.members) {
+          m.ready = m.isBot
+          m.rematch = false
+        }
         return this.broadcastLobby(room)
       case 'voice':
         return this.setVoice(room, member, client, msg.on)
+      case 'rematch':
+        if (room.game?.phase !== 'matchOver') return
+        member.rematch = msg.on
+        if (this.maybeRematch(room)) return
+        return this.broadcastLobby(room)
       case 'rtc':
         return this.relayRtc(room, member, msg.to, msg.description)
       case 'react':
@@ -222,6 +232,7 @@ export class RoomManager {
     member.client = null
     member.disconnectedAt = this.now()
     member.inVoice = false
+    if (this.maybeRematch(room)) return
     this.broadcastLobby(room)
     if (room.game) {
       this.schedule(room, true)
@@ -362,6 +373,11 @@ export class RoomManager {
     if (waiting.length > 0) {
       return this.error(client, 'rejected', `Waiting for ${waiting.map((m) => m.name).join(', ')} to get ready`)
     }
+    this.dealMatch(room)
+  }
+
+  private dealMatch(room: Room) {
+    for (const m of room.members) m.rematch = false
     room.game = createMatch(
       room.members.map(({ id, name, avatar, isBot, botLevel }) => ({ id, name, avatar, isBot, botLevel })),
       room.settings,
@@ -369,6 +385,21 @@ export class RoomManager {
     )
     this.broadcastLobby(room)
     this.commit(room, room.game, [{ type: 'roundStarted', round: 1 }])
+  }
+
+  /**
+   * Run it back: once every connected person at a finished match has voted,
+   * the same table deals again with the same settings, no lobby in between.
+   * Bots always want another game; people who dropped don't hold it up.
+   */
+  private maybeRematch(room: Room): boolean {
+    if (room.game?.phase !== 'matchOver' || room.members.length < MIN_PLAYERS) return false
+    const people = room.members.filter((m) => !m.isBot && m.client)
+    if (people.length === 0 || !people.every((m) => m.rematch)) return false
+    this.clearTimers(room)
+    room.deadline = null
+    this.dealMatch(room)
+    return true
   }
 
   private removeMember(room: Room, member: Member, reason: 'left' | 'kicked' | 'expired') {
@@ -396,6 +427,8 @@ export class RoomManager {
       const { state, events } = removePlayer(room.game, member.id)
       this.commit(room, state, events)
     }
+    // The one person everyone was waiting on just left.
+    if (this.maybeRematch(room)) return
     this.broadcastLobby(room)
   }
 
@@ -634,6 +667,7 @@ export class RoomManager {
         ready: m.isBot || m.id === room.hostId || m.ready,
         connected: m.isBot || !!m.client,
         inVoice: m.inVoice,
+        rematch: m.rematch,
       })),
     }
   }
@@ -674,6 +708,7 @@ export class RoomManager {
       client,
       disconnectedAt: null,
       inVoice: false,
+      rematch: false,
     }
   }
 
@@ -691,6 +726,7 @@ export class RoomManager {
       client: null,
       disconnectedAt: null,
       inVoice: false,
+      rematch: false,
     }
   }
 

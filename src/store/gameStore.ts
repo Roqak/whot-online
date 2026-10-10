@@ -105,6 +105,8 @@ interface StoreState {
   catchPlayer: (targetId: string) => void
   nextRound: () => void
   backToLobby: () => void
+  /** Match over: vote to deal the same table again (or take the vote back). */
+  rematch: (on: boolean) => void
   cheer: (emoji: Reaction, targetId?: string) => void
   pauseGame: () => void
   resumeGame: () => void
@@ -432,6 +434,7 @@ export const useGameStore = create<StoreState>((set, get) => {
     catchPlayer: (targetId) => send({ t: 'action', action: { type: 'catch', targetId } }),
     nextRound: () => send({ t: 'nextRound' }),
     backToLobby: () => send({ t: 'backToLobby' }),
+    rematch: (on) => send({ t: 'rematch', on }),
     cheer: (emoji, targetId) => send({ t: 'react', emoji, targetId }),
 
     // Only solo (LocalTable) games can pause: there's no other player whose
