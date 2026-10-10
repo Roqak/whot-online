@@ -135,7 +135,8 @@ function CardFace({ card, muted }: { card: Card; muted?: boolean }) {
 function CardBack() {
   return (
     <g>
-      <rect x="1" y="1" width="248" height="348" rx="22" fill="oklch(0.3 0.11 22)" />
+      {/* Colour comes from the card back you picked (see --back in index.css). */}
+      <rect x="1" y="1" width="248" height="348" rx="22" style={{ fill: 'oklch(var(--back))' }} />
       <rect x="1" y="1" width="248" height="348" rx="22" fill="none" stroke={PAPER} strokeOpacity="0.35" strokeWidth="2" />
       <rect x="14" y="14" width="222" height="322" rx="14" fill="none" stroke={PAPER} strokeOpacity="0.22" strokeWidth="1.5" />
       <g fill={PAPER} opacity="0.16">
@@ -146,7 +147,7 @@ function CardBack() {
         )}
       </g>
       <g transform="translate(125 175)">
-        <ellipse rx="62" ry="40" fill="oklch(0.24 0.09 22)" stroke={PAPER} strokeOpacity="0.4" strokeWidth="2" />
+        <ellipse rx="62" ry="40" style={{ fill: 'oklch(var(--back-deep))' }} stroke={PAPER} strokeOpacity="0.4" strokeWidth="2" />
         <text
           textAnchor="middle"
           dominantBaseline="central"

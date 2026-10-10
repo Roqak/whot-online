@@ -1,11 +1,12 @@
 import { useState } from 'react'
 import { motion } from 'framer-motion'
-import { Bot, Loader2, Play, Trophy, Users } from 'lucide-react'
+import { Bot, Loader2, Palette, Play, Trophy, Users } from 'lucide-react'
 import { useGameStore } from '../store/gameStore'
 import { AVATARS } from '../lib/avatars'
 import { MAX_NAME_LENGTH } from '../net/protocol'
 import { Avatar } from './Avatar'
 import { joinNames } from '../lib/crew'
+import { StyleSheet } from './StyleSheet'
 import { LeaderboardModal } from './LeaderboardModal'
 import { WhotCard } from './cards/WhotCard'
 
@@ -37,11 +38,20 @@ export default function LandingPage() {
   const [code, setCode] = useState(inviteCode ?? '')
   const [showJoin, setShowJoin] = useState(!!inviteCode)
   const [showLeaderboard, setShowLeaderboard] = useState(false)
+  const [showStyle, setShowStyle] = useState(false)
 
   const codeOk = code.trim().length >= 4
 
   return (
     <div className="relative mx-auto flex h-full w-full max-w-md flex-col justify-center gap-6 px-5 py-6">
+      <button
+        onClick={() => setShowStyle(true)}
+        className="btn-icon absolute left-3 top-[max(env(safe-area-inset-top),0.75rem)] gap-1.5 px-3 text-xs font-semibold text-fg-muted"
+        aria-label="Your style: table cloth and card back"
+      >
+        <Palette size={16} />
+        <span>Style</span>
+      </button>
       <button
         onClick={() => setShowLeaderboard(true)}
         className="btn-icon absolute right-3 top-[max(env(safe-area-inset-top),0.75rem)] gap-1.5 px-3 text-xs font-semibold text-marigold"
@@ -251,6 +261,8 @@ export default function LandingPage() {
             ? 'Play Whot against the house. Your table, your rules.'
             : 'No signup. 2 to 6 players. Share a link and deal.'}
       </p>
+
+      <StyleSheet open={showStyle} onClose={() => setShowStyle(false)} />
 
       <LeaderboardModal
         isOpen={showLeaderboard}

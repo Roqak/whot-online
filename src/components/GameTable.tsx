@@ -21,7 +21,8 @@ import { sortHand } from '../lib/hand'
 import { copyText } from '../lib/share'
 import { useCountdown, useOnChange } from '../lib/hooks'
 import { playSound, vibrate } from '../lib/sound'
-import { recordMatchResult, recordRoundWin } from '../lib/stats'
+import { getPlayerStats, recordMatchResult, recordRoundWin } from '../lib/stats'
+import { newlyUnlocked } from '../lib/cosmetics'
 import { crazyGameplayStart, crazyGameplayStop, crazyHappyTime, isCrazyGames } from '../lib/crazygames'
 import { Avatar } from './Avatar'
 import { VoiceControls } from './VoiceControls'
@@ -260,7 +261,7 @@ function Table({ view }: { view: GameView }) {
           if (mine(event.result.winnerId)) {
             celebrate()
             crazyHappyTime()
-            recordRoundWin()
+            withUnlocks(recordRoundWin)
           }
           break
         case 'matchOver': {
@@ -270,7 +271,7 @@ function Table({ view }: { view: GameView }) {
             crazyHappyTime()
             playSound('win')
           }
-          recordMatchResult({ won: isWinner })
+          withUnlocks(() => recordMatchResult({ won: isWinner }))
           break
         }
       }
@@ -765,6 +766,19 @@ function CheerBubbles({ cheers }: { cheers: Cheer[] }) {
       ))}
     </div>
   )
+}
+
+/** Runs a stats update and celebrates any cloth or card back it just earned. */
+function withUnlocks(update: () => unknown) {
+  const before = getPlayerStats()
+  update()
+  for (const item of newlyUnlocked(before, getPlayerStats())) {
+    toast(`🎉 New unlock: ${item.name}`, {
+      id: `unlock-${item.id}`,
+      description: 'Put it on in Style, on the home page',
+      duration: 5000,
+    })
+  }
 }
 
 function celebrate(big = false) {

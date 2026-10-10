@@ -31,6 +31,26 @@
     --ease-quart: cubic-bezier(0.25, 1, 0.5, 1);
   }
 
+  /* Card back colours: data-back on <html> (your pick) or any element (previews). */
+  :root,
+  [data-back='oxblood'] {
+    --back: 0.3 0.11 22;
+    --back-deep: 0.24 0.09 22;
+  }
+
+  [data-back='indigo'] {
+    --back: 0.31 0.1 266;
+    --back-deep: 0.23 0.08 266;
+  }
+  [data-back='forest'] {
+    --back: 0.33 0.08 155;
+    --back-deep: 0.25 0.07 155;
+  }
+  [data-back='ochre'] {
+    --back: 0.42 0.1 58;
+    --back-deep: 0.33 0.09 52;
+  }
+
   html,
   body,
   #root {
@@ -74,8 +94,34 @@
   /* The oval table the pile sits on: indigo cloth with a dark lip, so the
      middle of the screen reads as a place, not empty space. Static, so it
      costs nothing on budget phones. */
+  /* Table cloths you can earn. Each is a --cloth value set by data-cloth on
+     <html> (your pick) or on any element (previews); the nearest one wins.
+     All stay dark so the cream cards and the labels on the table keep their contrast. */
+  :root,
+  [data-cloth='adire'] {
+    --cloth: radial-gradient(ellipse 70% 65% at 50% 45%, oklch(var(--table-700) / 0.75) 0%, oklch(var(--table-800) / 0.6) 55%, oklch(var(--table-900) / 0.55) 100%);
+  }
+  [data-cloth='asooke'] {
+    --cloth:
+      repeating-linear-gradient(90deg, oklch(0.55 0.11 70 / 0.22) 0 3px, transparent 3px 22px),
+      repeating-linear-gradient(90deg, oklch(0.5 0.12 25 / 0.35) 0 10px, transparent 10px 44px),
+      radial-gradient(ellipse 70% 65% at 50% 45%, oklch(0.34 0.09 12) 0%, oklch(0.26 0.08 10) 100%);
+  }
+  [data-cloth='ankara'] {
+    --cloth:
+      radial-gradient(circle at 18px 18px, oklch(0.6 0.13 55 / 0.32) 0 7px, transparent 8px) 0 0 / 36px 36px,
+      radial-gradient(circle at 18px 18px, oklch(0.55 0.1 195 / 0.3) 0 15px, transparent 16px) 0 0 / 36px 36px,
+      radial-gradient(ellipse 70% 65% at 50% 45%, oklch(0.33 0.07 175) 0%, oklch(0.25 0.06 180) 100%);
+  }
+  [data-cloth='akwete'] {
+    --cloth:
+      linear-gradient(45deg, oklch(0.5 0.15 28 / 0.28) 25%, transparent 25% 75%, oklch(0.5 0.15 28 / 0.28) 75%) 0 0 / 30px 30px,
+      linear-gradient(-45deg, oklch(0.7 0.13 85 / 0.14) 25%, transparent 25% 75%, oklch(0.7 0.13 85 / 0.14) 75%) 0 0 / 30px 30px,
+      radial-gradient(ellipse 70% 65% at 50% 45%, oklch(0.27 0.03 30) 0%, oklch(0.2 0.02 30) 100%);
+  }
+
   .table-top {
-    background: radial-gradient(ellipse 70% 65% at 50% 45%, oklch(var(--table-700) / 0.75) 0%, oklch(var(--table-800) / 0.6) 55%, oklch(var(--table-900) / 0.55) 100%);
+    background: var(--cloth);
     box-shadow:
       inset 0 0 0 1.5px oklch(var(--table-600) / 0.55),
       inset 0 0 48px oklch(var(--table-950) / 0.4),

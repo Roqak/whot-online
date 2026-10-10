@@ -10,6 +10,8 @@ import { ClientMessage, LobbyView, PhraseId, Reaction, ServerMessage, normalizeR
 import { VoiceChat, voiceSupported } from '../net/voice'
 import type { Highlight } from '../engine/highlights'
 import { CrewMate, loadCrew, recordCrew } from '../lib/crew'
+import { Style, applyStyle, loadStyle, saveStyle } from '../lib/cosmetics'
+import { getPlayerStats } from '../lib/stats'
 
 /**
  * The portal build has no server: the game runs in the browser instead.
@@ -84,6 +86,8 @@ interface StoreState {
   crew: CrewMate[]
   /** Names to call out in this table's invite, after "Deal them in". */
   crewInvite: string[] | null
+  /** Your table cloth and card back. */
+  style: Style
   /** Card sent to the server but not yet confirmed; shown as already played. */
   pendingCardId: string | null
   busy: 'create' | 'join' | 'quick' | 'watch' | null
@@ -129,6 +133,7 @@ interface StoreState {
   say: (phrase: PhraseId) => void
   /** New table, with these crew mates named in its invite. */
   dealCrew: (names: string[]) => void
+  setStyle: (patch: Partial<Style>) => void
   pauseGame: () => void
   resumeGame: () => void
   toggleSound: () => void
@@ -356,6 +361,9 @@ export const useGameStore = create<StoreState>((set, get) => {
   const soundOn = storage.get(local, 'whot:sound', true)
   setSoundEnabled(soundOn)
 
+  const style = typeof window === 'undefined' ? { cloth: 'adire' as const, back: 'oxblood' as const } : loadStyle(getPlayerStats())
+  if (typeof document !== 'undefined') applyStyle(style)
+
   const randomAvatar = AVATARS[Math.floor(Math.random() * AVATARS.length)].id
   /** Nobody should have to type a name before their first game: an empty one becomes a guest name they can change later. */
   const ensureName = () => {
@@ -392,6 +400,7 @@ export const useGameStore = create<StoreState>((set, get) => {
     highlights: null,
     crew: LOCAL_ONLY ? [] : loadCrew(),
     crewInvite: null,
+    style,
     pendingCardId: null,
     busy: watchCode ? 'watch' : null,
     formError: null,
@@ -482,6 +491,13 @@ export const useGameStore = create<StoreState>((set, get) => {
     rematch: (on) => send({ t: 'rematch', on }),
     cheer: (emoji, targetId) => send({ t: 'react', emoji, targetId }),
     say: (phrase) => send({ t: 'say', phrase }),
+    setStyle: (patch) => {
+      const next = { ...get().style, ...patch }
+      saveStyle(next)
+      applyStyle(next)
+      set({ style: next })
+    },
+
     dealCrew: (names) => {
       set({ isLocal: false, crewInvite: names })
       get().createRoom()
